@@ -1,0 +1,18 @@
+# Non-compliant: SSH (22/tcp) open to the whole IPv4 internet.
+resource_changes = {
+	"aws_vpc_security_group_ingress_rule.ssh": {
+		"address": "aws_vpc_security_group_ingress_rule.ssh",
+		"type":    "aws_vpc_security_group_ingress_rule",
+		"mode":    "managed",
+		"change": {
+			"actions": ["create"],
+			"after": {
+				"cidr_ipv4":   "0.0.0.0/0",
+				"cidr_ipv6":   null,
+				"from_port":   22,
+				"to_port":     22,
+				"ip_protocol": "tcp",
+			},
+		},
+	},
+}
