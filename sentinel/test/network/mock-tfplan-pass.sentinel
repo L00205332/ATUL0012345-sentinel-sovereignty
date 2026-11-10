@@ -1,0 +1,96 @@
+# Compliant plan: SSH only from inside the VPC, HTTPS open to the world (allowed),
+# an IPv6-only rule (cidr_ipv4 is null), an inline SG allowing all traffic from
+# inside the VPC, a legacy egress-all rule (egress is out of scope) and the
+# deletion of an old open SSH rule.
+resource_changes = {
+	"aws_vpc_security_group_ingress_rule.ssh_internal": {
+		"address": "aws_vpc_security_group_ingress_rule.ssh_internal",
+		"type":    "aws_vpc_security_group_ingress_rule",
+		"mode":    "managed",
+		"change": {
+			"actions": ["create"],
+			"after": {
+				"cidr_ipv4":   "10.0.0.0/16",
+				"cidr_ipv6":   null,
+				"from_port":   22,
+				"to_port":     22,
+				"ip_protocol": "tcp",
+			},
+		},
+	},
+	"aws_vpc_security_group_ingress_rule.https_public": {
+		"address": "aws_vpc_security_group_ingress_rule.https_public",
+		"type":    "aws_vpc_security_group_ingress_rule",
+		"mode":    "managed",
+		"change": {
+			"actions": ["create"],
+			"after": {
+				"cidr_ipv4":   "0.0.0.0/0",
+				"cidr_ipv6":   null,
+				"from_port":   443,
+				"to_port":     443,
+				"ip_protocol": "tcp",
+			},
+		},
+	},
+	"aws_vpc_security_group_ingress_rule.https_ipv6": {
+		"address": "aws_vpc_security_group_ingress_rule.https_ipv6",
+		"type":    "aws_vpc_security_group_ingress_rule",
+		"mode":    "managed",
+		"change": {
+			"actions": ["create"],
+			"after": {
+				"cidr_ipv4":   null,
+				"cidr_ipv6":   "::/0",
+				"from_port":   443,
+				"to_port":     443,
+				"ip_protocol": "tcp",
+			},
+		},
+	},
+	"aws_security_group.app": {
+		"address": "aws_security_group.app",
+		"type":    "aws_security_group",
+		"mode":    "managed",
+		"change": {
+			"actions": ["create"],
+			"after": {
+				"name": "app",
+				"ingress": [
+					{
+						"cidr_blocks":      ["10.0.0.0/16"],
+						"ipv6_cidr_blocks": [],
+						"from_port":        0,
+						"to_port":          0,
+						"protocol":         "-1",
+					},
+				],
+			},
+		},
+	},
+	"aws_security_group_rule.egress_all": {
+		"address": "aws_security_group_rule.egress_all",
+		"type":    "aws_security_group_rule",
+		"mode":    "managed",
+		"change": {
+			"actions": ["create"],
+			"after": {
+				"type":             "egress",
+				"cidr_blocks":      ["0.0.0.0/0"],
+				"ipv6_cidr_blocks": null,
+				"from_port":        0,
+				"to_port":          0,
+				"protocol":         "-1",
+			},
+		},
+	},
+	"aws_vpc_security_group_ingress_rule.legacy_open_ssh": {
+		"address": "aws_vpc_security_group_ingress_rule.legacy_open_ssh",
+		"type":    "aws_vpc_security_group_ingress_rule",
+		"mode":    "managed",
+		"change": {
+			"actions": ["delete"],
+			"after":   null,
+		},
+	},
+}

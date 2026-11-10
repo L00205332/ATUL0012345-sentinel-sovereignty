@@ -1,0 +1,36 @@
+# Non-compliant: SSH opened to IPv6 through the legacy aws_security_group_rule
+# resource. The egress rule in the same plan must be ignored.
+resource_changes = {
+	"aws_security_group_rule.ssh_v6": {
+		"address": "aws_security_group_rule.ssh_v6",
+		"type":    "aws_security_group_rule",
+		"mode":    "managed",
+		"change": {
+			"actions": ["create"],
+			"after": {
+				"type":             "ingress",
+				"cidr_blocks":      null,
+				"ipv6_cidr_blocks": ["::/0"],
+				"from_port":        22,
+				"to_port":          22,
+				"protocol":         "tcp",
+			},
+		},
+	},
+	"aws_security_group_rule.egress_all": {
+		"address": "aws_security_group_rule.egress_all",
+		"type":    "aws_security_group_rule",
+		"mode":    "managed",
+		"change": {
+			"actions": ["create"],
+			"after": {
+				"type":             "egress",
+				"cidr_blocks":      ["0.0.0.0/0"],
+				"ipv6_cidr_blocks": null,
+				"from_port":        0,
+				"to_port":          0,
+				"protocol":         "-1",
+			},
+		},
+	},
+}

@@ -1,0 +1,19 @@
+# Non-compliant: RDP (3389/tcp) open to the internet. SSH is not exposed, so
+# no_public_ssh passes, but public_ingress_restricted must fail.
+resource_changes = {
+	"aws_vpc_security_group_ingress_rule.rdp": {
+		"address": "aws_vpc_security_group_ingress_rule.rdp",
+		"type":    "aws_vpc_security_group_ingress_rule",
+		"mode":    "managed",
+		"change": {
+			"actions": ["create"],
+			"after": {
+				"cidr_ipv4":   "0.0.0.0/0",
+				"cidr_ipv6":   null,
+				"from_port":   3389,
+				"to_port":     3389,
+				"ip_protocol": "tcp",
+			},
+		},
+	},
+}

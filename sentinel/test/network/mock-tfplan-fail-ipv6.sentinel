@@ -1,0 +1,18 @@
+# Non-compliant: SSH open to the whole IPv6 internet (cidr_ipv4 is null).
+resource_changes = {
+	"aws_vpc_security_group_ingress_rule.ssh_ipv6": {
+		"address": "aws_vpc_security_group_ingress_rule.ssh_ipv6",
+		"type":    "aws_vpc_security_group_ingress_rule",
+		"mode":    "managed",
+		"change": {
+			"actions": ["create"],
+			"after": {
+				"cidr_ipv4":   null,
+				"cidr_ipv6":   "::/0",
+				"from_port":   22,
+				"to_port":     22,
+				"ip_protocol": "tcp",
+			},
+		},
+	},
+}

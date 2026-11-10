@@ -1,0 +1,19 @@
+# Non-compliant: ip_protocol "-1" means ALL protocols and ALL ports.
+# With "-1" the provider does not allow from_port/to_port, so they are null.
+resource_changes = {
+	"aws_vpc_security_group_ingress_rule.all_traffic": {
+		"address": "aws_vpc_security_group_ingress_rule.all_traffic",
+		"type":    "aws_vpc_security_group_ingress_rule",
+		"mode":    "managed",
+		"change": {
+			"actions": ["create"],
+			"after": {
+				"cidr_ipv4":   "0.0.0.0/0",
+				"cidr_ipv6":   null,
+				"from_port":   null,
+				"to_port":     null,
+				"ip_protocol": "-1",
+			},
+		},
+	},
+}

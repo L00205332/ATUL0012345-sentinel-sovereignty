@@ -6,7 +6,7 @@ This log is kept because the assignment brief requires it: *"Where LLM tools are
 |------|--------|
 | Tool | Claude Code (Anthropic), Claude desktop app, Code tab |
 | Model | Claude Opus 5.5 (`claude-opus-5-5`) |
-| Scope | Only prompts that shaped the assignment are logged (design, code, testing, analysis). Pure confirmations ("done", etc.) and housekeeping about this log are left out. Prompts are copied verbatim (typos kept). |
+| Scope | Only prompts that shaped the assignment are logged (design, code, testing, analysis). Confirmations ("done"), troubleshooting, explanation questions and housekeeping (about this log, the README or the git workflow) are left out. Prompts are copied verbatim (typos kept). |
 
 ---
 
@@ -23,10 +23,32 @@ This log is kept because the assignment brief requires it: *"Where LLM tools are
 **What the AI did:** Created a skeleton `README.md` (sections mapped to the brief's deliverables, with an AI-usage declaration) and this `prompts.md`. It reviewed the brief for a design discussion and provided prerequisite verification commands for the student to run. All git operations are done by the student.
 
 ### Prompt 3 (2026-11-10)
-> [pasted output of the prerequisite checks: Terraform v1.6.1 (out of date, latest 1.17.1), Sentinel v0.41.0, aws-cli/2.13.25, git 2.56.0, gh logged in as L00205332]
-> looks like we need to update Terraform
+> [screenshot: HCP Terraform org L00205332, Policy sets page, "You have 1 policy set left in your plan"]
+> as we are using free tier HCP account we only have 1 policy set. for this assignment i prefer using real resources on AWS but for every stack we build we need to have a cleanup/destroy script, we are going to use eu-west-1 as our main region and for testing/validation let's try to have some sort of data stored outside for example instance snapshot in frankfurt. how i am thinking we can proceed is: [the six-step plan: Sentinel basics on the network policy → Terraform code → connect HCP → remaining policies → evidence → README and report]
+> remind me of the needed screenshots for evidences for the testing and validations of sentinel policies. also do you think we need screenshots for all git commands i execute?
 
-**What the AI did:** Explained why the local Terraform version should match the HCP workspace version and the lock file. Gave upgrade options, including a manual install that checks the binary's SHA256 checksum against HashiCorp's published `SHA256SUMS`. That check is an example of the supply-chain integrity principle the assignment covers. The student upgraded to Terraform 1.17.1.
+**What the AI did:** Confirmed that one policy set can hold all the policies. Discussed the design implications of the student's decisions: real AWS resources with a destroy script per stack, `eu-west-1` as the main region, and an EBS snapshot copy to Frankfurt as the sovereignty test case. Recommended OIDC dynamic credentials instead of static AWS keys. Produced an evidence/screenshot checklist and advised that git commands don't need screenshots, because the GitHub commit history is the evidence.
+
+### Prompt 4 (2026-11-10)
+> ok you are right let's use frankfurt for approved DR still in EU, and us-east-1 for the off regions snapshot test which should be denied and marked as a drift now tell me what will you build
+
+**What the AI did:** Clarified the difference between a Sentinel denial (plan-time) and drift (real infrastructure diverging from the Terraform state), and proposed a manual out-of-band `us-east-1` snapshot copy as a genuine drift demonstration of what Sentinel cannot see. Laid out the full build plan (Terraform stack, six Sentinel policies with enforcement levels, mocks/tests, PR-based non-compliant testing, destroy/audit scripts, CI, documentation) for the student to approve.
+
+### Prompt 5 (2026-11-10)
+> [screenshot: AWS Budgets, "My Monthly Cost Budget" $10.00, status OK / Healthy]
+> how HCP gets AWS credentials let's go with Static access keys saved as workspace variables also i have AWS budget in place
+
+**What the AI did:** Accepted the static-keys decision and listed the controls that make it acceptable: a dedicated least-privilege IAM user, keys stored as sensitive env variables, never committed, deleted at the end. Noted this as a trade-off to justify in the README. Then gave Lesson 1 on Sentinel concepts (where policy checks sit in a run, the `tfplan/v2` / `tfconfig/v2` imports, `resource_changes`, rules and `main`, mocks and test cases) with an exercise for the student to write the first `network.sentinel` rule.
+
+### Prompt 6 (2026-11-10)
+> create the network test files and let me know when to run the test
+
+**What the AI did:** Created the Sentinel test cases and hand-written `tfplan/v2` mocks for the network policy under `sentinel/test/network/`: one compliant scenario and four non-compliant ones (IPv4 SSH open, IPv6 SSH open, a wide port range including 22, `ip_protocol = "-1"`). Checked them with `sentinel fmt -check`. The policy itself (`network.sentinel`) is left for the student to write, test-first.
+
+### Prompt 7 (2026-11-10)
+> write the whole code, i won't write any code, update sentinel/network.sentinel
+
+**What the AI did:** Wrote `sentinel/network.sentinel` with two rules: `no_public_ssh`, and `public_ingress_restricted` (only 443/tcp may be internet-facing, configurable via `param`). The policy normalises ingress from all three AWS resource types (`aws_vpc_security_group_ingress_rule`, inline `aws_security_group` ingress, legacy `aws_security_group_rule`) so that switching resource type can't bypass it. Added test cases for public RDP, an inline-SG bypass and a legacy-rule IPv6 bypass, and extended the pass mock to cover false positives. Result: `sentinel test -run network` 8/8 PASS.
 
 ---
 
