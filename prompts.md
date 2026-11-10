@@ -70,6 +70,18 @@ Checked with `terraform fmt -check`, and updated the README design and supply-ch
 
 **What the AI did:** Ran `terraform init -backend=false` (VPC module 6.0.0 downloaded; `hashicorp/aws` v6.72.0 installed, signed by HashiCorp), then `terraform validate` (configuration valid) and `terraform providers lock -platform=linux_amd64 -platform=windows_amd64`. Noted in the README that the VPC module adds its own `>= 5.79.0` provider constraint.
 
+### Prompt 10 (2026-11-10)
+> [pasted terminal log: terraform init against HCP, validate, providers lock, branch/commit/push/PR #2 merge]
+> done, PR merged, let's connect HCP.
+
+**What the AI did:** Wrote the pieces needed before the first HCP run:
+- `iam/hcp-terraform-policy.json`: a least-privilege policy for the HCP IAM user. EC2/KMS are allowed only in eu-west-1/eu-central-1, IAM is limited to the project's name prefix, only `AmazonSSMManagedInstanceCore` can be attached, and PassRole works only to EC2.
+- `sentinel/sentinel.hcl`: the single policy set, with network as hard-mandatory.
+- `scripts/destroy.ps1`: a destroy run via the HCP API, with typed confirmation, then waiting and an audit.
+- `scripts/audit-regions.ps1`: leftovers in the EU regions, plus any snapshot, volume or instance in us-east-1 reported as drift.
+
+Parse-checked both scripts, validated the JSON and re-ran `sentinel test` (8/8 PASS). Documented the HCP workspace/policy set settings and the cleanup procedure in the README.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->

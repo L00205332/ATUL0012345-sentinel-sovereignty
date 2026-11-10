@@ -30,9 +30,13 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 ├── documentation/
 │   ├── evidence/                      ⏳ screenshots + test-results.md
 │   └── technical-report/              ⏳ ≤ 1 page limitations & recommendations
-├── scripts/                           ⏳ destroy.ps1, audit-regions.ps1 (cleanup + off-region drift check)
+├── iam/
+│   └── hcp-terraform-policy.json      ✅ least-privilege policy for the HCP Terraform IAM user
+├── scripts/
+│   ├── destroy.ps1                    ✅ destroy run via HCP API → confirm → wait → audit
+│   └── audit-regions.ps1              ✅ leftovers in EU regions + off-region drift (us-east-1)
 ├── sentinel/
-│   ├── sentinel.hcl                   ⏳ the single policy set: policies + enforcement levels
+│   ├── sentinel.hcl                   ✅ the single policy set (network so far; others added as built)
 │   ├── network.sentinel               ✅
 │   ├── sovereignty.sentinel           ⏳
 │   ├── supply_chain.sentinel          ⏳
@@ -105,6 +109,8 @@ Agreed region model (policy ⏳):
 - **Test case:** an EBS snapshot copy to `us-east-1` must be denied at plan time.
 - **Drift demonstration:** the same copy made manually with the AWS CLI (outside Terraform) is *not* seen by Sentinel. `scripts/audit-regions.ps1` detects it and flags it as off-region drift, which shows why sovereignty needs controls beyond plan-time policy.
 - **Administrative access:** no SSH. Admin access goes through AWS SSM Session Manager (audited, no open port).
+- **Defence in depth (IAM):** the HCP Terraform IAM user ([`iam/hcp-terraform-policy.json`](iam/hcp-terraform-policy.json)) can only call EC2 and KMS when `aws:RequestedRegion` is `eu-west-1` or `eu-central-1`. Even if a Sentinel policy were missing or overridden, AWS itself would refuse to create anything in `us-east-1` for that identity. Sentinel stops a non-compliant plan before it runs; IAM stops the API call if it ever runs anyway.
+- **Pipeline identity scoped:** that user can create IAM roles and instance profiles only with the `atul0012345-sentinel-sovereignty-` name prefix. It can attach only `AmazonSSMManagedInstanceCore`, and can pass the role only to EC2. This stops it from escalating its own privileges.
 
 _TODO: data residency for sensitive data (`data_classification` tag), and how jurisdictional restrictions support sovereignty._
 
@@ -189,7 +195,33 @@ terraform providers lock -platform=linux_amd64 -platform=windows_amd64
 
 The last command records checksums for both the HCP runners (Linux) and local Windows in `.terraform.lock.hcl`. Without the Linux hashes, HCP would not be able to verify the provider it downloads.
 
-_TODO: HCP Terraform workspace and policy set setup, generating `tfplan`, destroy/cleanup._
+### HCP Terraform setup
+
+| Setting | Value | Why |
+|---|---|---|
+| Organisation | `L00205332` | Free tier |
+| Workspace | `atul0012345-sovereignty`, VCS-driven from this repo | Every merge to `main` plans; every PR gets a speculative plan + policy check |
+| Working directory | `terraform` | The Terraform root inside the repo |
+| Terraform version | 1.17.1 | Matches local CLI and lock file |
+| Apply method | Manual | A human confirms every apply after seeing the policy result |
+| AWS credentials | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as **sensitive environment variables** | Static keys: an accepted trade-off (long-lived secret held by a SaaS; OIDC dynamic credentials would be better in production), mitigated by a dedicated least-privilege, region-restricted IAM user whose keys are deleted after grading |
+| Policy set | `atul0012345-sovereignty-policies`, VCS from this repo, policies path `sentinel`, scoped to the workspace | The single Free-tier policy set; reads `sentinel/sentinel.hcl` |
+
+### Destroy / cleanup
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\scripts\destroy.ps1
+```
+
+The workspace is VCS-driven, so `terraform destroy` from the CLI is not allowed. The script queues a destroy run through the HCP API, asks you to type the workspace name to confirm, waits for the apply, and then runs `audit-regions.ps1`. KMS keys go into a 7-day `PendingDeletion` state (an AWS minimum) and are not reported as leftovers.
+
+Audit only (e.g. for the drift demo):
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\scripts\audit-regions.ps1
+```
+
+_TODO: generating `tfplan`._
 
 ## 6. Evidence
 
@@ -230,6 +262,7 @@ _TODO_
 Points identified so far:
 - Values computed during apply (e.g. a CIDR taken from another resource) are unknown at plan time, so a policy can only partially judge them (see network decision 4).
 - Sentinel cannot see changes made outside Terraform (drift).
+- Policies also run on **destroy** plans. A policy must not block the removal of non-compliant resources, so the policies only evaluate resources being created or updated.
 
 ### 7.5 Maintaining policies as cloud environments evolve
 _TODO_
