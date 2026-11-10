@@ -50,6 +50,26 @@ This log is kept because the assignment brief requires it: *"Where LLM tools are
 
 **What the AI did:** Wrote `sentinel/network.sentinel` with two rules: `no_public_ssh`, and `public_ingress_restricted` (only 443/tcp may be internet-facing, configurable via `param`). The policy normalises ingress from all three AWS resource types (`aws_vpc_security_group_ingress_rule`, inline `aws_security_group` ingress, legacy `aws_security_group_rule`) so that switching resource type can't bypass it. Added test cases for public RDP, an inline-SG bypass and a legacy-rule IPv6 bypass, and extended the pass mock to cover false positives. Result: `sentinel test -run network` 8/8 PASS.
 
+### Prompt 8 (2026-11-10)
+> [screenshot: PR #1 "Network policy: block public SSH and unapproved public ingress" merged into main; pasted git log of the branch/commit/push/PR steps]
+> done, PR merged, log:
+
+**What the AI did:** Following the agreed plan (next step after the network policy), wrote the Terraform stack in `terraform/`:
+- `versions.tf`: Terraform `>= 1.17.0, < 2.0.0`, `hashicorp/aws ~> 6.0`, HCP cloud block for org `L00205332`.
+- `providers.tf`: eu-west-1 plus default tags.
+- `network.tf`: VPC module `terraform-aws-modules/vpc/aws` pinned to `6.0.0`, a security group with no ingress and only 443 egress.
+- `main.tf`: customer-managed KMS key, SSM role, t3.micro EC2 with IMDSv2 and an encrypted root disk.
+- `storage.tf`: a sensitive data volume.
+- `backup.tf`: a snapshot plus an encrypted DR copy in eu-central-1, using the AWS provider v6 per-resource `region`.
+- `.gitignore` and `.gitattributes` (LF endings).
+
+Checked with `terraform fmt -check`, and updated the README design and supply-chain sections.
+
+### Prompt 9 (2026-11-10)
+> looks good now let's validate terraform code before we push and merge.
+
+**What the AI did:** Ran `terraform init -backend=false` (VPC module 6.0.0 downloaded; `hashicorp/aws` v6.72.0 installed, signed by HashiCorp), then `terraform validate` (configuration valid) and `terraform providers lock -platform=linux_amd64 -platform=windows_amd64`. Noted in the README that the VPC module adds its own `>= 5.79.0` provider constraint.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->

@@ -1,0 +1,9 @@
+# Store text files with LF line endings in git, whatever OS edits them.
+# HCP Terraform and GitHub Actions run on Linux, and this stops the
+# "LF will be replaced by CRLF" warnings and noisy whole-file diffs.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.pdf binary
+tfplan binary
