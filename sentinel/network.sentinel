@@ -1,0 +1,160 @@
+# network.sentinel
+#
+# Infrastructure security: network configuration for AWS security groups.
+#
+#   Rule 1 (no_public_ssh)             SSH (22/tcp) must never be reachable from the
+#                                      internet (0.0.0.0/0 or ::/0). Admin access goes
+#                                      through SSM Session Manager instead.
+#   Rule 2 (public_ingress_restricted) Any ingress open to the internet must be a
+#                                      single approved port over TCP (default: 443).
+#                                      This also blocks RDP, database ports, wide port
+#                                      ranges and "all traffic" rules.
+#
+# The AWS provider can express an ingress rule in three ways, and all three are
+# checked, otherwise the policy could be bypassed by switching resource type:
+#   - aws_vpc_security_group_ingress_rule  (recommended, one rule per resource)
+#   - aws_security_group                   (inline "ingress" blocks)
+#   - aws_security_group_rule              (legacy, type = "ingress")
+
+import "tfplan/v2" as tfplan
+import "strings"
+import "types"
+
+# Ports that may be exposed to the internet. Can be overridden in sentinel.hcl.
+param public_ingress_ports default [443]
+
+internet_cidrs = ["0.0.0.0/0", "::/0"]
+all_protocols = ["-1", "all"]
+tcp_protocols = ["tcp", "6"]
+ssh_port = 22
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# Managed resources of a given type that are being created or updated.
+# Deletes and no-ops are skipped: they can only remove exposure, and their
+# "after" value is null.
+changed_resources = func(type) {
+	return filter tfplan.resource_changes as _, rc {
+		rc.type is type and
+			rc.mode is "managed" and
+			(rc.change.actions contains "create" or rc.change.actions contains "update")
+	}
+}
+
+# Turn a string, list, null or undefined (unknown at plan time) into a list.
+to_list = func(v) {
+	t = types.type_of(v)
+	if t is "list" {
+		return v
+	}
+	if t is "string" {
+		return [v]
+	}
+	return []
+}
+
+# Normalised ingress rule: address, cidrs, protocol, from, to.
+normalise = func(address, cidr_v4, cidr_v6, protocol, from_port, to_port) {
+	return {
+		"address":  address,
+		"cidrs":    to_list(cidr_v4) + to_list(cidr_v6),
+		"protocol": strings.to_lower(string(protocol else "-1")),
+		"from":     from_port else null,
+		"to":       to_port else null,
+	}
+}
+
+# Collect every ingress rule in the plan, whichever resource type defines it.
+collect_ingress_rules = func() {
+	rules = []
+
+	for changed_resources("aws_vpc_security_group_ingress_rule") as address, rc {
+		a = rc.change.after
+		append(rules, normalise(address, a.cidr_ipv4 else null, a.cidr_ipv6 else null,
+			a.ip_protocol else null, a.from_port else null, a.to_port else null))
+	}
+
+	for changed_resources("aws_security_group") as address, rc {
+		for (rc.change.after.ingress else []) as i, ing {
+			append(rules, normalise(address + ".ingress[" + string(i) + "]",
+				ing.cidr_blocks else null, ing.ipv6_cidr_blocks else null,
+				ing.protocol else null, ing.from_port else null, ing.to_port else null))
+		}
+	}
+
+	for changed_resources("aws_security_group_rule") as address, rc {
+		a = rc.change.after
+		if (a.type else "") is "ingress" {
+			append(rules, normalise(address, a.cidr_blocks else null, a.ipv6_cidr_blocks else null,
+				a.protocol else null, a.from_port else null, a.to_port else null))
+		}
+	}
+
+	return rules
+}
+
+is_public = func(r) {
+	return any r.cidrs as c { c in internet_cidrs }
+}
+
+is_all_protocols = func(r) {
+	return r.protocol in all_protocols
+}
+
+# Does the rule's port range include the given port? Missing ports on a TCP
+# rule are treated as "all ports" (fail safe).
+covers_port = func(r, port) {
+	if is_all_protocols(r) or r.from is null or r.to is null {
+		return true
+	}
+	return r.from <= port and port <= r.to
+}
+
+exposes_ssh = func(r) {
+	return is_public(r) and
+		(is_all_protocols(r) or r.protocol in tcp_protocols) and
+		covers_port(r, ssh_port)
+}
+
+# A public rule is acceptable only as a single approved TCP port.
+is_approved_public_rule = func(r) {
+	return r.protocol in tcp_protocols and
+		r.from is not null and
+		r.from is r.to and
+		r.from in public_ingress_ports
+}
+
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
+
+ingress_rules = collect_ingress_rules()
+
+ssh_violations = filter ingress_rules as _, r { exposes_ssh(r) }
+
+public_violations = filter ingress_rules as _, r {
+	is_public(r) and not is_approved_public_rule(r)
+}
+
+for ssh_violations as _, r {
+	print("FAIL no_public_ssh:", r.address, "allows SSH from", r.cidrs)
+}
+
+for public_violations as _, r {
+	print("FAIL public_ingress_restricted:", r.address, "opens protocol", r.protocol,
+		"ports", r.from, "-", r.to, "to", r.cidrs, "- only", public_ingress_ports, "/tcp may be public")
+}
+
+no_public_ssh = rule {
+	length(ssh_violations) is 0
+}
+
+public_ingress_restricted = rule {
+	length(public_violations) is 0
+}
+
+main = rule {
+	no_public_ssh and public_ingress_restricted
+}
