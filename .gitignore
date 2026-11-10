@@ -1,0 +1,21 @@
+# Terraform working files (providers are re-downloaded and verified against
+# .terraform.lock.hcl, so the binaries never belong in git)
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Variable files can hold secrets. Keep an example file only.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# NOTE: .terraform.lock.hcl and tfplan are committed on purpose (assignment
+# deliverables). Never commit AWS keys or HCP tokens.
+.terraformrc
+terraform.rc
