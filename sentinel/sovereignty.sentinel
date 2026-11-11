@@ -1,0 +1,292 @@
+# sovereignty.sentinel
+#
+# Digital sovereignty for ATUL0012345 (Ireland / EU).
+#
+#   Rule 1 resources_in_approved_regions  Every AWS resource is in an approved EU
+#                                          region. Resources without a region must
+#                                          be a known global service (e.g. IAM).
+#   Rule 2 dr_region_backup_only           The DR region (Frankfurt) may hold only
+#                                          backup copies and their keys, no compute,
+#                                          network or primary data.
+#   Rule 3 sensitive_data_resident         Data tagged data_classification=sensitive
+#                                          lives in the primary region (Ireland).
+#                                          Only backup copies may sit in the DR region.
+#   Rule 4 replication_targets_approved    Backup and replication services that copy
+#                                          data elsewhere (DLM cross-region copy,
+#                                          AWS Backup copy actions) may only target
+#                                          approved regions.
+#   Rule 5 no_external_admin_trust         IAM roles may only be assumed by AWS
+#                                          services. No other account, federated
+#                                          identity or "*" can gain administrative
+#                                          access to the workload.
+#
+# The region of each resource comes from the plan: AWS provider v6 records it on
+# every regional resource, even when the code does not set it.
+# Self-contained on purpose: HCP Free runs individually managed policies, so no
+# shared modules are used, and parameter defaults live in this file.
+
+import "tfplan/v2" as tfplan
+import "strings"
+import "types"
+import "json"
+
+param approved_regions default ["eu-west-1", "eu-central-1"]
+param primary_region default "eu-west-1"
+param dr_regions default ["eu-central-1"]
+
+# The only resource types allowed in a DR region: backup copies and their keys.
+param dr_allowed_types default [
+	"aws_ebs_snapshot_copy",
+	"aws_kms_key",
+	"aws_kms_alias",
+	"aws_kms_replica_key",
+	"aws_backup_vault",
+]
+
+# Global AWS services: these resources have no region by design.
+param global_type_prefixes default [
+	"aws_iam_",
+	"aws_cloudfront_",
+	"aws_route53_",
+	"aws_organizations_",
+]
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+is_aws = func(rc) {
+	return strings.has_suffix(rc.provider_name else "", "hashicorp/aws")
+}
+
+# AWS resources being created or updated. Deletes are skipped so that removing
+# a non-compliant resource is never blocked.
+changed = filter tfplan.resource_changes as _, rc {
+	rc.mode is "managed" and
+		is_aws(rc) and
+		(rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+region_of = func(rc) {
+	r = rc.change.after.region else null
+	if types.type_of(r) is "string" {
+		return r
+	}
+	return null
+}
+
+region_unknown = func(rc) {
+	return (rc.change.after_unknown.region else false) is true
+}
+
+is_global = func(rc) {
+	return any global_type_prefixes as p { strings.has_prefix(rc.type, p) }
+}
+
+tags_of = func(rc) {
+	t = rc.change.after.tags_all else null
+	if types.type_of(t) is not "map" {
+		t = rc.change.after.tags else null
+	}
+	if types.type_of(t) is not "map" {
+		return {}
+	}
+	return t
+}
+
+is_sensitive = func(rc) {
+	return (tags_of(rc)["data_classification"] else "") is "sensitive"
+}
+
+as_list = func(v) {
+	t = types.type_of(v)
+	if t is "list" {
+		return v
+	}
+	if t is "map" or t is "string" {
+		return [v]
+	}
+	return []
+}
+
+# Region part of an ARN: arn:partition:service:REGION:account:resource
+arn_region = func(arn) {
+	parts = strings.split(arn, ":")
+	if length(parts) < 4 {
+		return ""
+	}
+	return parts[3]
+}
+
+# ---------------------------------------------------------------------------
+# Rule 1: approved regions only
+# ---------------------------------------------------------------------------
+
+region_violations = []
+for changed as address, rc {
+	r = region_of(rc)
+	if r is not null {
+		if not (r in approved_regions) {
+			append(region_violations, address + " is in " + r)
+		}
+	} else if region_unknown(rc) {
+		append(region_violations, address + " has a region that is unknown at plan time")
+	} else if not is_global(rc) {
+		append(region_violations, address + " has no region and is not an approved global service")
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Rule 2: the DR region holds backups only
+# ---------------------------------------------------------------------------
+
+dr_violations = []
+for changed as address, rc {
+	r = region_of(rc)
+	if r is not null and r in dr_regions and not (rc.type in dr_allowed_types) {
+		append(dr_violations, address + " (" + rc.type + ") is in DR region " + r +
+			", which only allows backup copies and their keys")
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Rule 3: sensitive data residency
+# ---------------------------------------------------------------------------
+
+sensitive_violations = []
+for changed as address, rc {
+	if is_sensitive(rc) {
+		r = region_of(rc)
+		primary_ok = r is primary_region
+		dr_copy_ok = r is not null and r in dr_regions and rc.type in dr_allowed_types
+		if not (primary_ok or dr_copy_ok) {
+			append(sensitive_violations, address + " holds sensitive data in " +
+				string(r else "an unknown region") +
+				": primary copy must be in " +
+				primary_region +
+				", backup copies only in " +
+				strings.join(dr_regions, ", "))
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Rule 4: replication and backup copy targets
+# ---------------------------------------------------------------------------
+
+replication_violations = []
+
+# Data Lifecycle Manager: cross-region copy of EBS snapshots.
+for changed as address, rc {
+	if rc.type is "aws_dlm_lifecycle_policy" {
+		for as_list(rc.change.after.policy_details else null) as _, pd {
+			for as_list(pd.schedule else null) as _, sch {
+				for as_list(sch.cross_region_copy_rule else null) as _, copy_rule {
+					target = copy_rule.target_region else copy_rule.target else null
+					if types.type_of(target) is "string" and not (target in approved_regions) {
+						append(replication_violations, address + " copies snapshots to " + target)
+					}
+				}
+			}
+		}
+	}
+}
+
+# AWS Backup: copy actions to another vault. When the vault ARN is not known at
+# plan time, the vault is created in the same plan and is checked by Rule 1.
+for changed as address, rc {
+	if rc.type is "aws_backup_plan" {
+		for as_list(rc.change.after.rule else null) as _, plan_rule {
+			for as_list(plan_rule.copy_action else null) as _, ca {
+				arn = ca.destination_vault_arn else null
+				if types.type_of(arn) is "string" and not (arn_region(arn) in approved_regions) {
+					append(replication_violations, address + " copies backups to vault in " + arn_region(arn))
+				}
+			}
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Rule 5: administrative access stays inside the jurisdiction
+# ---------------------------------------------------------------------------
+
+trust_violations = []
+for changed as address, rc {
+	if rc.type is "aws_iam_role" {
+		doc = rc.change.after.assume_role_policy else null
+		if types.type_of(doc) is not "string" {
+			append(trust_violations, address + " has a trust policy that is unknown at plan time")
+		} else {
+			policy = json.unmarshal(doc)
+			for as_list(policy["Statement"] else null) as _, st {
+				if (st["Effect"] else "") is "Allow" {
+					principal = st["Principal"] else null
+					if types.type_of(principal) is "string" {
+						append(trust_violations, address + " trusts principal " + principal)
+					} else if types.type_of(principal) is "map" {
+						for principal as kind, _ {
+							if kind is not "Service" {
+								append(trust_violations, address + " trusts a non-service principal (" + kind + ")")
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Output and rules
+# ---------------------------------------------------------------------------
+
+for region_violations as _, v {
+	print("FAIL resources_in_approved_regions:", v, "- approved:", approved_regions)
+}
+for dr_violations as _, v {
+	print("FAIL dr_region_backup_only:", v)
+}
+for sensitive_violations as _, v {
+	print("FAIL sensitive_data_resident:", v)
+}
+for replication_violations as _, v {
+	print("FAIL replication_targets_approved:", v, "- approved:", approved_regions)
+}
+for trust_violations as _, v {
+	print("FAIL no_external_admin_trust:", v)
+}
+
+resources_in_approved_regions = rule {
+	length(region_violations) is 0
+}
+
+dr_region_backup_only = rule {
+	length(dr_violations) is 0
+}
+
+sensitive_data_resident = rule {
+	length(sensitive_violations) is 0
+}
+
+replication_targets_approved = rule {
+	length(replication_violations) is 0
+}
+
+no_external_admin_trust = rule {
+	length(trust_violations) is 0
+}
+
+# Every rule is evaluated (no short-circuit), so the policy output lists all
+# failing rules at once, not just the first one.
+main = rule {
+	all [
+		resources_in_approved_regions,
+		dr_region_backup_only,
+		sensitive_data_resident,
+		replication_targets_approved,
+		no_external_admin_trust,
+	] as r {
+		r
+	}
+}

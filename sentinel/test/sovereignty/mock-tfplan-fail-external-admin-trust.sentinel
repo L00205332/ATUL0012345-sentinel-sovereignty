@@ -1,0 +1,19 @@
+# Non-compliant: an IAM role can be assumed by another AWS account.
+resource_changes = {
+	"aws_iam_role.admin": {
+		"address":       "aws_iam_role.admin",
+		"type":          "aws_iam_role",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"name":               "admin",
+				"assume_role_policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": \"sts:AssumeRole\", \"Principal\": {\"AWS\": \"arn:aws:iam::111122223333:root\"}}]}",
+			},
+			"after_unknown": {},
+		},
+	},
+}

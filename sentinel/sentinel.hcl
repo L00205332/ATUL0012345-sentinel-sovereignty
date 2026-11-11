@@ -6,6 +6,11 @@
 #   hard-mandatory  - failure blocks the run, no override possible
 # Policies are added here as they are built.
 
+policy "sovereignty" {
+  source            = "./sovereignty.sentinel"
+  enforcement_level = "hard-mandatory"
+}
+
 policy "network" {
   source            = "./network.sentinel"
   enforcement_level = "hard-mandatory"

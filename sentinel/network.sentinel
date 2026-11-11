@@ -155,6 +155,13 @@ public_ingress_restricted = rule {
 	length(public_violations) is 0
 }
 
+# Every rule is evaluated (no short-circuit), so the policy output lists all
+# failing rules at once, not just the first one.
 main = rule {
-	no_public_ssh and public_ingress_restricted
+	all [
+		no_public_ssh,
+		public_ingress_restricted,
+	] as r {
+		r
+	}
 }

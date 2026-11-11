@@ -109,6 +109,18 @@ Added `pass-real-baseline.hcl` (network vs the real plan, 9/9 PASS), git-ignored
 
 **What the AI did:** Confirmed the deployed state matches the design: compute and data in eu-west-1, only an encrypted DR snapshot copy and its key alias in eu-central-1, no off-region resources. Recorded the before/after audit and the applied run in the README. Earlier in this step it renamed the audit script's `-Profile` parameter to `-AwsProfile`, because `$PROFILE` is a built-in PowerShell variable.
 
+### Prompt 15 (2026-11-11)
+> done, PR merged, let's write the sovereignty policy
+
+**What the AI did:** Wrote `sentinel/sovereignty.sentinel` (hard-mandatory) with five rules, based on the real plan structure:
+- approved EU regions, with global services exempted and unknown regions failing safe
+- the DR region holding backups only
+- sensitive-data residency through the `data_classification` tag
+- DLM and AWS Backup copy targets
+- IAM trust limited to service principals (administrative access)
+
+The first parse failed because `rule` is a Sentinel keyword used as a variable name, so the loop variables were renamed. Generated 10 hand-written mocks and test cases with a script, and added a test against the real plan. Two tests failed because `main = rule { a and b }` short-circuits, so later rules were never evaluated; `main` now uses `all [ ... ]` in both policies, so every violation is reported. Result: 20/20 tests PASS. A mutation test (adding `us-east-1` to the approved regions) made 4 tests fail, showing the tests catch a weakened policy. Registered the policy in `sentinel.hcl` and documented the rules, design decisions, results and limitations in the README.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->

@@ -1,0 +1,22 @@
+# Non-compliant: the primary sensitive volume is created in Frankfurt instead of Ireland.
+resource_changes = {
+	"aws_ebs_volume.data": {
+		"address":       "aws_ebs_volume.data",
+		"type":          "aws_ebs_volume",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-central-1",
+				"tags_all": {
+					"Organisation":        "ATUL0012345",
+					"data_classification": "sensitive",
+				},
+			},
+			"after_unknown": {},
+		},
+	},
+}

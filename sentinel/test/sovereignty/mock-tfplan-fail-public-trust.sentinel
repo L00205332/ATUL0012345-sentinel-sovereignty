@@ -1,0 +1,19 @@
+# Non-compliant: an IAM role trusts Principal "*" (anyone).
+resource_changes = {
+	"aws_iam_role.open": {
+		"address":       "aws_iam_role.open",
+		"type":          "aws_iam_role",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"name":               "open",
+				"assume_role_policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": \"sts:AssumeRole\", \"Principal\": \"*\"}]}",
+			},
+			"after_unknown": {},
+		},
+	},
+}

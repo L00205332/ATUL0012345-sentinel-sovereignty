@@ -1,0 +1,38 @@
+# Non-compliant: sensitive snapshot copied to us-east-1 with a us-east-1 key (the planned sovereignty test case: dr_region = "us-east-1").
+resource_changes = {
+	"aws_ebs_snapshot_copy.data_dr": {
+		"address":       "aws_ebs_snapshot_copy.data_dr",
+		"type":          "aws_ebs_snapshot_copy",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "us-east-1",
+				"tags_all": {
+					"Organisation":        "ATUL0012345",
+					"data_classification": "sensitive",
+				},
+				"source_region": "eu-west-1",
+			},
+			"after_unknown": {},
+		},
+	},
+	"aws_kms_key.dr": {
+		"address":       "aws_kms_key.dr",
+		"type":          "aws_kms_key",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "us-east-1",
+			},
+			"after_unknown": {},
+		},
+	},
+}

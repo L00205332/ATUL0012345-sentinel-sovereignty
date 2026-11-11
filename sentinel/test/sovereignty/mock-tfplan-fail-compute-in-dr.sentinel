@@ -1,0 +1,18 @@
+# Non-compliant: EC2 instance in the DR region. Frankfurt is in the EU (Rule 1 passes) but may only hold backup copies (Rule 2 fails).
+resource_changes = {
+	"aws_instance.app": {
+		"address":       "aws_instance.app",
+		"type":          "aws_instance",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-central-1",
+			},
+			"after_unknown": {},
+		},
+	},
+}

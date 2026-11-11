@@ -39,13 +39,13 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 ├── sentinel/
 │   ├── sentinel.hcl                   ✅ the single policy set (network so far; others added as built)
 │   ├── network.sentinel               ✅
-│   ├── sovereignty.sentinel           ⏳
+│   ├── sovereignty.sentinel           ✅
 │   ├── supply_chain.sentinel          ⏳
 │   ├── instance_type.sentinel         ⏳
 │   ├── encryption.sentinel            ⏳
 │   ├── metadata.sentinel              ⏳
 │   ├── mocks/compliant-baseline/      ✅ REAL mocks downloaded from HCP run run-Xz7zmhMJKXVNHwa3
-│   └── test/<policy>/                 ✅ network · ⏳ others: *.hcl test cases + mock-*.sentinel
+│   └── test/<policy>/                 ✅ network, sovereignty · ⏳ others: *.hcl test cases + mock-*.sentinel
 ├── terraform/
 │   ├── versions.tf                    ✅ Terraform/provider constraints + HCP cloud block
 │   ├── providers.tf                   ✅ AWS provider (eu-west-1) + default tags
@@ -100,7 +100,7 @@ Design decisions:
 
 ### 4.1 Digital sovereignty
 
-Agreed region model (policy ⏳):
+Region model, enforced by [`sentinel/sovereignty.sentinel`](sentinel/sovereignty.sentinel) ✅ (hard-mandatory):
 
 | Region | Role | Policy result |
 |---|---|---|
@@ -114,7 +114,26 @@ Agreed region model (policy ⏳):
 - **Defence in depth (IAM):** the HCP Terraform IAM user ([`iam/hcp-terraform-policy.json`](iam/hcp-terraform-policy.json)) can only call EC2 and KMS when `aws:RequestedRegion` is `eu-west-1` or `eu-central-1`. Even if a Sentinel policy were missing or overridden, AWS itself would refuse to create anything in `us-east-1` for that identity. Sentinel stops a non-compliant plan before it runs; IAM stops the API call if it ever runs anyway.
 - **Pipeline identity scoped:** that user can create IAM roles and instance profiles only with the `atul0012345-sentinel-sovereignty-` name prefix. It can attach only `AmazonSSMManagedInstanceCore`, and can pass the role only to EC2. This stops it from escalating its own privileges.
 
-_TODO: data residency for sensitive data (`data_classification` tag), and how jurisdictional restrictions support sovereignty._
+#### Sovereignty policy rules
+
+| Rule | Enforces | Brief requirement |
+|---|---|---|
+| `resources_in_approved_regions` | Every AWS resource being created or updated is in `eu-west-1` or `eu-central-1`. A resource with no region must be a known global service (`aws_iam_*`, `aws_cloudfront_*`, `aws_route53_*`, `aws_organizations_*`). A region unknown at plan time fails (fail safe) | Restrict deployments to approved geographical regions |
+| `dr_region_backup_only` | Frankfurt may only hold backup copies and their keys (`aws_ebs_snapshot_copy`, `aws_kms_key`, `aws_kms_alias`, `aws_kms_replica_key`, `aws_backup_vault`), no compute, network or primary data | Backups |
+| `sensitive_data_resident` | Resources tagged `data_classification = sensitive` have their primary copy in Ireland; only backup copies may be in the DR region | Data residency for sensitive information |
+| `replication_targets_approved` | Services that copy data elsewhere stay in the EU: DLM `cross_region_copy_rule.target_region`, AWS Backup `copy_action.destination_vault_arn` (region read from the ARN) | Data replication and backups |
+| `no_external_admin_trust` | IAM role trust policies may only trust AWS **service** principals: no other AWS account, federated identity or `"*"` | Administrative access |
+
+Design decisions:
+1. **Region from the plan.** AWS provider v6 records `region` on every regional resource, even when the code doesn't set it (confirmed on the real plan: 20/20 regional resources). So the policy reads `change.after.region` and doesn't have to work out provider aliases.
+2. **Two layers for sensitive data.** Rules 1 and 3 overlap on purpose. In a mutation test where `us-east-1` was wrongly added to `approved_regions`, Rule 3 still blocked the sensitive snapshot copy.
+3. **Deletes and data sources are ignored.** Removing an off-region resource must never be blocked, and reading a data source stores nothing.
+4. **Non-AWS providers are skipped** (e.g. `random_id`). Which providers may be used at all is the supply-chain policy's job.
+5. **All rules always evaluated.** `main` uses `all [rule1, rule2, ...]` instead of `rule1 and rule2`. Sentinel's `and` short-circuits, so the output would only show the *first* failing rule; now a policy check lists every violation at once. This was found because tests that checked later rules failed until the change, and the same change was applied to `network.sentinel`.
+
+**How jurisdictional restrictions contribute to sovereignty:** keeping compute, data, backups and keys inside Irish and EU regions keeps the data under EU law (GDPR, the NIS2 / Digital Security & Resilience agenda highlighted for Ireland's EU presidency) and Irish regulatory oversight. Disaster recovery stays inside the same legal area (Frankfurt), and customer-managed keys held per region mean the organisation, not the provider, decides who can decrypt each copy. Restricting role trust to AWS services keeps administrative control inside the organisation's own account.
+
+_TODO: discussion of what region rules cannot guarantee (see 7.2)._
 
 ### 4.2 IaC supply chain security
 
@@ -261,6 +280,19 @@ _TODO: generating `tfplan`._
 | network | `fail-inline-sg.hcl` | SSH via inline `aws_security_group` ingress | false | ✅ PASS |
 | network | `fail-legacy-rule.hcl` | SSH on IPv6 via legacy `aws_security_group_rule` | false | ✅ PASS |
 | network | `pass-real-baseline.hcl` | **Real plan** from HCP run `run-Xz7zmhMJKXVNHwa3` (23 resources) | true | ✅ PASS |
+| sovereignty | `pass-real-baseline.hcl` | **Real plan** (23 resources): all 5 rules true | true | ✅ PASS |
+| sovereignty | `pass.hcl` | Irish compute + sensitive volume, Frankfurt snapshot copy + key, EC2-trusted IAM role, `random_id`, a data source in us-east-1, deletion of a us-east-1 copy, DLM and Backup copies to Frankfurt, vault ARN unknown at plan time | true | ✅ PASS |
+| sovereignty | `fail-offregion-snapshot-copy.hcl` | Sensitive snapshot copy + key in **us-east-1** (the planned live test) | false (regions ❌, sensitive ❌) | ✅ PASS |
+| sovereignty | `fail-compute-outside-eu.hcl` | EC2 in us-east-1 | false (regions ❌) | ✅ PASS |
+| sovereignty | `fail-compute-in-dr.hcl` | EC2 in Frankfurt: in the EU, but the DR region is backups only | false (regions ✅, DR ❌) | ✅ PASS |
+| sovereignty | `fail-sensitive-primary-in-dr.hcl` | Primary sensitive volume in Frankfurt | false (DR ❌, sensitive ❌) | ✅ PASS |
+| sovereignty | `fail-dlm-cross-region.hcl` | DLM policy in Ireland copying snapshots to us-east-1 | false (replication ❌) | ✅ PASS |
+| sovereignty | `fail-backup-copy-offregion.hcl` | AWS Backup copy to a us-east-1 vault | false (replication ❌) | ✅ PASS |
+| sovereignty | `fail-unknown-region.hcl` | Region unknown until apply (fail safe) | false (regions ❌) | ✅ PASS |
+| sovereignty | `fail-external-admin-trust.hcl` | IAM role trusts another AWS account | false (trust ❌) | ✅ PASS |
+| sovereignty | `fail-public-trust.hcl` | IAM role trusts `"*"` | false (trust ❌) | ✅ PASS |
+
+**Mutation test:** with `us-east-1` temporarily added to `approved_regions`, 4 sovereignty tests failed, so a weakened policy cannot pass `sentinel test`, and the upload script refuses to deploy it.
 
 ### HCP Terraform runs
 
@@ -298,7 +330,9 @@ _TODO_
 Points identified so far:
 - A region check only sees what Terraform deploys. A manual CLI/console copy to `us-east-1` bypasses it (drift demo, see 4.1).
 - The EU region is still operated by a US-headquartered provider (US CLOUD Act exposure).
-- Global services (IAM, Route 53, CloudFront) have no region, so a region rule can only exempt them, not constrain them.
+- Global services (IAM, Route 53, CloudFront) have no region, so a region rule can only exempt them, not constrain them. CloudFront in particular caches content in edge locations worldwide.
+- Some replication targets carry no region at all: an S3 replication destination is a bucket ARN (`arn:aws:s3:::bucket`) with no region, so the policy cannot judge it from the plan.
+- A tag (`data_classification`) only protects data if it's applied. Untagged sensitive data is only covered by the general region rule.
 
 ### 7.3 Importance of supply chain integrity
 _TODO_

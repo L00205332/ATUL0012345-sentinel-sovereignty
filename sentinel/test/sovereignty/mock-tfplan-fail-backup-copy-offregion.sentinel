@@ -1,0 +1,27 @@
+# Non-compliant: an AWS Backup plan in Ireland copies recovery points to a vault in us-east-1.
+resource_changes = {
+	"aws_backup_plan.daily": {
+		"address":       "aws_backup_plan.daily",
+		"type":          "aws_backup_plan",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-west-1",
+				"rule": [
+					{
+						"copy_action": [
+							{
+								"destination_vault_arn": "arn:aws:backup:us-east-1:111122223333:backup-vault:offsite",
+							},
+						],
+					},
+				],
+			},
+			"after_unknown": {},
+		},
+	},
+}
