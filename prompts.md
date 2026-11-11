@@ -82,6 +82,11 @@ Checked with `terraform fmt -check`, and updated the README design and supply-ch
 
 Parse-checked both scripts, validated the JSON and re-ran `sentinel test` (8/8 PASS). Documented the HCP workspace/policy set settings and the cleanup procedure in the README.
 
+### Prompt 11 (2026-11-11)
+> [screenshot: HCP "Create a policy set" page; the VCS provider option is disabled on the Free tier ("no remaining versioned policy sets"); Automated and Individually managed are available]
+
+**What the AI did:** Recommended the Automated (API-managed) policy set over pasting policies into the UI, so that GitHub stays the source of truth. Wrote `scripts/upload-policies.ps1`, which runs `sentinel test`, packages `sentinel.hcl` and the `*.sentinel` files (tests and the local `.sentinel/` cache excluded), creates a policy set version through the HCP API, uploads it and waits until it's ready. Dry-ran the packaging step, added `.sentinel/` to `.gitignore`, and documented the policy deployment flow and the Free-tier constraint in the README.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->

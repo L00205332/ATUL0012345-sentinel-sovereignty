@@ -33,6 +33,7 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 ├── iam/
 │   └── hcp-terraform-policy.json      ✅ least-privilege policy for the HCP Terraform IAM user
 ├── scripts/
+│   ├── upload-policies.ps1            ✅ sentinel test → package sentinel/ → upload as policy set version
 │   ├── destroy.ps1                    ✅ destroy run via HCP API → confirm → wait → audit
 │   └── audit-regions.ps1              ✅ leftovers in EU regions + off-region drift (us-east-1)
 ├── sentinel/
@@ -205,7 +206,9 @@ The last command records checksums for both the HCP runners (Linux) and local Wi
 | Terraform version | 1.17.1 | Matches local CLI and lock file |
 | Apply method | Manual | A human confirms every apply after seeing the policy result |
 | AWS credentials | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as **sensitive environment variables** | Static keys: an accepted trade-off (long-lived secret held by a SaaS; OIDC dynamic credentials would be better in production), mitigated by a dedicated least-privilege, region-restricted IAM user whose keys are deleted after grading |
-| Policy set | `atul0012345-sovereignty-policies`, VCS from this repo, policies path `sentinel`, scoped to the workspace | The single Free-tier policy set; reads `sentinel/sentinel.hcl` |
+| Policy set | `atul0012345-sovereignty-policies`, **Automated (API-managed)**, scoped to the workspace | The single Free-tier policy set. The Free tier does not allow VCS-backed policy sets, so `scripts/upload-policies.ps1` uploads `sentinel/` from the repo as a new policy set version |
+
+**Policy deployment flow:** policy PR → review → merge to `main` → `scripts/upload-policies.ps1` (runs `sentinel test`, then uploads only `sentinel.hcl` + `*.sentinel`) → HCP enforces the new version from the next run. GitHub stays the single source of truth. The risk is that HCP keeps enforcing an older version if the upload is forgotten; automating the upload in CI on merge to `main` would remove that manual step (see 7.5).
 
 ### Destroy / cleanup
 
@@ -220,6 +223,11 @@ Audit only (e.g. for the drift demo):
 ```bash
 powershell -ExecutionPolicy Bypass -File .\scripts\audit-regions.ps1
 ```
+
+### After the assignment is graded
+1. Run `scripts/destroy.ps1` and confirm the audit reports CLEAN.
+2. Delete the HCP IAM user's access keys, then the user (`aws iam delete-access-key`, `aws iam delete-user-policy`, `aws iam delete-user`).
+3. Delete the `AWS_*` variables from the HCP workspace.
 
 _TODO: generating `tfplan`._
 
@@ -266,6 +274,10 @@ Points identified so far:
 
 ### 7.5 Maintaining policies as cloud environments evolve
 _TODO_
+
+Points identified so far:
+- Platform tiers constrain the design. HCP Free allows one policy set and no VCS-backed policy sets, so deploying policies became an API upload step that has to be kept in sync with `main`.
+- New AWS resource types or arguments (e.g. the per-resource `region` in provider v6) can open new paths around a policy, or make a policy simpler. Policies need reviewing whenever provider major versions change.
 
 ## 8. Declaration of AI tool usage
 
