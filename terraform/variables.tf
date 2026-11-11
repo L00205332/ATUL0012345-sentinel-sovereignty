@@ -19,7 +19,7 @@ variable "primary_region" {
 variable "dr_region" {
   description = "Disaster recovery region for backup copies only. Must stay inside the EU."
   type        = string
-  default     = "eu-central-1"
+  default     = "us-east-1"
 }
 
 variable "vpc_cidr" {
