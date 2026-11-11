@@ -46,6 +46,7 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 │   ├── encryption.sentinel            ⏳
 │   ├── metadata.sentinel              ⏳
 │   ├── mocks/compliant-baseline/      ✅ REAL mocks downloaded from HCP run run-Xz7zmhMJKXVNHwa3
+│   ├── mocks/offregion-snapshot/      ✅ REAL mocks from the blocked PR #9 run run-kwQg5XK3EGXKwPTs (redacted)
 │   └── test/<policy>/                 ✅ network, sovereignty · ⏳ others: *.hcl test cases + mock-*.sentinel
 ├── terraform/
 │   ├── versions.tf                    ✅ Terraform/provider constraints + HCP cloud block
@@ -310,6 +311,7 @@ _TODO: generating `tfplan`._
 | sovereignty | `pass-real-baseline.hcl` | **Real plan** (23 resources): all 5 rules true | true | ✅ PASS |
 | sovereignty | `pass.hcl` | Irish compute + sensitive volume, Frankfurt snapshot copy + key, EC2-trusted IAM role, `random_id`, a data source in us-east-1, deletion of a us-east-1 copy, DLM and Backup copies to Frankfurt, vault ARN unknown at plan time | true | ✅ PASS |
 | sovereignty | `fail-offregion-snapshot-copy.hcl` | Sensitive snapshot copy + key in **us-east-1** (the planned live test) | false (regions ❌, sensitive ❌) | ✅ PASS |
+| sovereignty | `fail-real-offregion.hcl` | **Real plan** of the blocked PR #9 (DR key, alias and copy replaced in us-east-1). Produces the same 4 FAIL lines as the HCP run | false (regions ❌, sensitive ❌, others ✅) | ✅ PASS |
 | sovereignty | `fail-compute-outside-eu.hcl` | EC2 in us-east-1 | false (regions ❌) | ✅ PASS |
 | sovereignty | `fail-compute-in-dr.hcl` | EC2 in Frankfurt: in the EU, but the DR region is backups only | false (regions ✅, DR ❌) | ✅ PASS |
 | sovereignty | `fail-sensitive-primary-in-dr.hcl` | Primary sensitive volume in Frankfurt | false (DR ❌, sensitive ❌) | ✅ PASS |
@@ -326,6 +328,22 @@ _TODO: generating `tfplan`._
 | Run | Trigger | Plan | Policy check | Outcome |
 |---|---|---|---|---|
 | `run-Xz7zmhMJKXVNHwa3` "First compliant run: baseline stack with network policy" | UI, commit `74787df` | 23 to add, 0 change, 0 destroy | `network` (hard-mandatory) ✅ 1/1 passed, on HCP Sentinel 0.40.x | ✅ Applied: 23 created (confirmed manually: "Compliant baseline: network policy passed") |
+| Speculative plan for **PR #9** "TEST - non-compliant: DR snapshot copy to us-east-1 (do not merge)" | GitHub PR, `dr_region = "us-east-1"` | 3 to add, 3 to destroy (DR key, alias and snapshot copy replaced in us-east-1) | `atul0012345-guardrails` (hard-mandatory) ❌ **hard failed**, 0/1 passed | ⛔ **Errored**, cannot be applied; PR check red ("1 failed"); PR closed without merging |
+
+**PR #9 policy output** (all violations in one run, thanks to `main = all [...]`):
+```
+Enforcement Mode: hard-mandatory
+FAIL resources_in_approved_regions: aws_kms_key.dr is in us-east-1 - approved: ["eu-west-1" "eu-central-1"]
+FAIL resources_in_approved_regions: aws_ebs_snapshot_copy.data_dr is in us-east-1 - approved: ["eu-west-1" "eu-central-1"]
+FAIL resources_in_approved_regions: aws_kms_alias.dr is in us-east-1 - approved: ["eu-west-1" "eu-central-1"]
+FAIL sensitive_data_resident: aws_ebs_snapshot_copy.data_dr holds sensitive data in us-east-1: primary copy must be in eu-west-1, backup copies only in eu-central-1
+```
+
+How this prevents the non-compliant deployment:
+1. The change could only reach `main` through a PR. The PR's speculative plan was evaluated by the hard-mandatory policy, and GitHub shows the failed check.
+2. A hard-mandatory failure cannot be overridden, and the run ended *Errored*.
+3. The destroy part of the plan (the compliant Frankfurt copy) didn't trigger a violation, because policies ignore deletes by design.
+4. **Second layer:** the plan succeeded even though the HCP IAM user can't call `us-east-1`, because planning a create makes no create API calls. The IAM region condition would only have blocked it at apply. Sentinel caught it one stage earlier, before any AWS call.
 
 ### Deployed state vs policy (audit)
 
@@ -343,6 +361,9 @@ This confirms the real outcome matches the design: compute and data in Ireland, 
 - **A snapshot's `encrypted` is unknown at plan time** (inherited from its volume). → The encryption policy must check the source volume, and the DR copy's own `encrypted`/`kms_key_id`, instead of the snapshot itself.
 - **`tfconfig/v2` lists only the provider blocks and module calls written in our code** (`hashicorp/aws ~> 6.0`, `terraform-aws-modules/vpc/aws 6.0.0`). The VPC module's internal `>= 5.79.0` provider requirement is invisible to Sentinel; only `.terraform.lock.hcl` records it.
 - **Mock hygiene:** before committing, the mocks were scanned for credentials, the AWS account ID and emails. HCP masks sensitive variables (only `"sensitive": true` is recorded, never the value).
+  - The **baseline** mocks (before anything was deployed) contained no account ID.
+  - The **PR #9** mocks were taken while the stack was running, so the plan and state held the real **AWS account ID** (330 occurrences inside ARNs and `owner_id`) and the instance's **public IP/DNS**. These were replaced with AWS documentation values (`111122223333`, `203.0.113.10`) before committing. No policy reads them, and the real-plan test gives the same result as HCP after redaction.
+  - Lesson: **mocks from runs against existing infrastructure are effectively a copy of the state**, and must be treated as sensitive data before publishing.
 
 _TODO: screenshots in `documentation/evidence/`, non-compliant runs._
 
