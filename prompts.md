@@ -133,6 +133,24 @@ The first parse failed because `rule` is a Sentinel keyword used as a variable n
 
 Rewrote `scripts/upload-policies.ps1`: it refuses uncommitted changes, records the git commit in the policy description, tests, builds, deletes stale policies only with `-RemoveStale`, deploys the bundle plus advisory policies, and has a `-DryRun` mode (verified). Git-ignored `sentinel/build/`. Documented the three Free-tier limits, the bundling design and its trade-offs (one enforcement level, `instance_type` moved to advisory) in the README.
 
+### Prompt 17 (2026-11-11)
+> [screenshots: HCP speculative run for PR #9 "TEST - non-compliant: DR snapshot copy to us-east-1": plan +3/-3, "Sentinel policies hard failed", atul0012345-guardrails output with 3× resources_in_approved_regions and 1× sensitive_data_resident FAIL lines, run Errored]
+> check as PR created and run kicked off on HCP
+
+**What the AI did:** Confirmed on GitHub that PR #9's HCP Terraform check failed ("1 failed"). Interpreted the run:
+- the region change forces replacement of the DR key, alias and copy
+- every violation is listed in one run
+- deletes are correctly ignored
+- the plan succeeded despite the IAM region restriction, because plans make no create calls, so Sentinel stopped it before the IAM layer would have
+
+Recorded the run, the policy output and the explanation of how enforcement prevents the deployment in the README evidence section.
+
+### Prompt 18 (2026-11-11)
+> [screenshot: GitHub pull requests list, PR #9 with "All checks have failed: Terraform Cloud/L00205332/… 1 failed"]
+> check git hub screenshot, I have also downloaded sentinel mocks to .\sentinel\mocks\offregion-snapshot and did Close the PR without merging
+
+**What the AI did:** Confirmed PR #9 is closed without merging and `main` is unchanged. Scanned the new mocks: no credentials, but the plan and state contained the AWS account ID (330×) and the instance's public IP/DNS, because the stack was running. Redacted them with AWS documentation values, since no policy reads them. Added `fail-real-offregion.hcl`, which reproduces the same 4 FAIL lines as the HCP run (21/21 PASS, bundle tests PASS). Documented the result and the mock-redaction lesson in the README.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->

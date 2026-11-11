@@ -1,0 +1,437 @@
+import "strings"
+import "types"
+
+_modules = {
+	"root": {
+		"data": {},
+		"path": [],
+		"resources": {
+			"aws_ebs_snapshot_copy": {
+				"data_dr": {
+					0: {
+						"applied": {
+							"completion_duration_minutes": null,
+							"description":                 "atul0012345-sentinel-sovereignty sensitive data DR copy (us-east-1)",
+							"encrypted":                   true,
+							"permanent_restore":           null,
+							"region":                      "us-east-1",
+							"source_region":               "eu-west-1",
+							"source_snapshot_id":          "snap-07b0864d7491a70e0",
+							"tags": {
+								"Name":                "atul0012345-sentinel-sovereignty-data-dr",
+								"data_classification": "sensitive",
+							},
+							"tags_all": {
+								"Jurisdiction":        "EU-IE",
+								"ManagedBy":           "Terraform",
+								"Name":                "atul0012345-sentinel-sovereignty-data-dr",
+								"Organisation":        "ATUL0012345",
+								"Project":             "sentinel-sovereignty",
+								"data_classification": "sensitive",
+							},
+							"temporary_restore_days": null,
+							"timeouts":               null,
+						},
+						"destroy": true,
+						"diff": {
+							"arn": {
+								"computed": true,
+								"new":      "",
+								"old":      "arn:aws:ec2:eu-central-1::snapshot/snap-07dd4e4b119c29fdd",
+							},
+							"completion_duration_minutes": {
+								"computed": false,
+								"new":      "",
+								"old":      "",
+							},
+							"data_encryption_key_id": {
+								"computed": true,
+								"new":      "",
+								"old":      "",
+							},
+							"description": {
+								"computed": false,
+								"new":      "atul0012345-sentinel-sovereignty sensitive data DR copy (us-east-1)",
+								"old":      "atul0012345-sentinel-sovereignty sensitive data DR copy (eu-central-1)",
+							},
+							"encrypted": {
+								"computed": false,
+								"new":      "true",
+								"old":      "true",
+							},
+							"id": {
+								"computed": true,
+								"new":      "",
+								"old":      "snap-07dd4e4b119c29fdd",
+							},
+							"kms_key_id": {
+								"computed": true,
+								"new":      "",
+								"old":      "arn:aws:kms:eu-central-1:111122223333:key/c6be7053-0028-485e-8597-859e145e2723",
+							},
+							"outpost_arn": {
+								"computed": true,
+								"new":      "",
+								"old":      "",
+							},
+							"owner_alias": {
+								"computed": true,
+								"new":      "",
+								"old":      "",
+							},
+							"owner_id": {
+								"computed": true,
+								"new":      "",
+								"old":      "111122223333",
+							},
+							"permanent_restore": {
+								"computed": false,
+								"new":      "",
+								"old":      "",
+							},
+							"region": {
+								"computed": false,
+								"new":      "us-east-1",
+								"old":      "eu-central-1",
+							},
+							"source_region": {
+								"computed": false,
+								"new":      "eu-west-1",
+								"old":      "eu-west-1",
+							},
+							"source_snapshot_id": {
+								"computed": false,
+								"new":      "snap-07b0864d7491a70e0",
+								"old":      "snap-07b0864d7491a70e0",
+							},
+							"storage_tier": {
+								"computed": true,
+								"new":      "",
+								"old":      "standard",
+							},
+							"tags.%": {
+								"computed": false,
+								"new":      "2",
+								"old":      "2",
+							},
+							"tags.Name": {
+								"computed": false,
+								"new":      "atul0012345-sentinel-sovereignty-data-dr",
+								"old":      "atul0012345-sentinel-sovereignty-data-dr",
+							},
+							"tags.data_classification": {
+								"computed": false,
+								"new":      "sensitive",
+								"old":      "sensitive",
+							},
+							"tags_all.%": {
+								"computed": false,
+								"new":      "6",
+								"old":      "6",
+							},
+							"tags_all.Jurisdiction": {
+								"computed": false,
+								"new":      "EU-IE",
+								"old":      "EU-IE",
+							},
+							"tags_all.ManagedBy": {
+								"computed": false,
+								"new":      "Terraform",
+								"old":      "Terraform",
+							},
+							"tags_all.Name": {
+								"computed": false,
+								"new":      "atul0012345-sentinel-sovereignty-data-dr",
+								"old":      "atul0012345-sentinel-sovereignty-data-dr",
+							},
+							"tags_all.Organisation": {
+								"computed": false,
+								"new":      "ATUL0012345",
+								"old":      "ATUL0012345",
+							},
+							"tags_all.Project": {
+								"computed": false,
+								"new":      "sentinel-sovereignty",
+								"old":      "sentinel-sovereignty",
+							},
+							"tags_all.data_classification": {
+								"computed": false,
+								"new":      "sensitive",
+								"old":      "sensitive",
+							},
+							"temporary_restore_days": {
+								"computed": false,
+								"new":      "",
+								"old":      "",
+							},
+							"timeouts": {
+								"computed": false,
+								"new":      "",
+								"old":      "",
+							},
+							"volume_id": {
+								"computed": true,
+								"new":      "",
+								"old":      "vol-ffffffff",
+							},
+							"volume_size": {
+								"computed": true,
+								"new":      "",
+								"old":      "1",
+							},
+						},
+						"requires_new": true,
+					},
+				},
+			},
+			"aws_kms_alias": {
+				"dr": {
+					0: {
+						"applied": {
+							"name":   "alias/atul0012345-sentinel-sovereignty-dr",
+							"region": "us-east-1",
+						},
+						"destroy": true,
+						"diff": {
+							"arn": {
+								"computed": true,
+								"new":      "",
+								"old":      "arn:aws:kms:eu-central-1:111122223333:alias/atul0012345-sentinel-sovereignty-dr",
+							},
+							"id": {
+								"computed": true,
+								"new":      "",
+								"old":      "alias/atul0012345-sentinel-sovereignty-dr",
+							},
+							"name": {
+								"computed": false,
+								"new":      "alias/atul0012345-sentinel-sovereignty-dr",
+								"old":      "alias/atul0012345-sentinel-sovereignty-dr",
+							},
+							"name_prefix": {
+								"computed": true,
+								"new":      "",
+								"old":      "",
+							},
+							"region": {
+								"computed": false,
+								"new":      "us-east-1",
+								"old":      "eu-central-1",
+							},
+							"target_key_arn": {
+								"computed": true,
+								"new":      "",
+								"old":      "arn:aws:kms:eu-central-1:111122223333:key/c6be7053-0028-485e-8597-859e145e2723",
+							},
+							"target_key_id": {
+								"computed": true,
+								"new":      "",
+								"old":      "c6be7053-0028-485e-8597-859e145e2723",
+							},
+						},
+						"requires_new": true,
+					},
+				},
+			},
+			"aws_kms_key": {
+				"dr": {
+					0: {
+						"applied": {
+							"bypass_policy_lockout_safety_check": false,
+							"custom_key_store_id":                null,
+							"customer_master_key_spec":           "SYMMETRIC_DEFAULT",
+							"deletion_window_in_days":            7,
+							"description":                        "atul0012345-sentinel-sovereignty DR snapshot key (us-east-1)",
+							"enable_key_rotation":                true,
+							"is_enabled":                         true,
+							"key_usage":                          "ENCRYPT_DECRYPT",
+							"region":                             "us-east-1",
+							"tags":                               null,
+							"tags_all": {
+								"Jurisdiction": "EU-IE",
+								"ManagedBy":    "Terraform",
+								"Organisation": "ATUL0012345",
+								"Project":      "sentinel-sovereignty",
+							},
+							"timeouts":   null,
+							"xks_key_id": null,
+						},
+						"destroy": true,
+						"diff": {
+							"arn": {
+								"computed": true,
+								"new":      "",
+								"old":      "arn:aws:kms:eu-central-1:111122223333:key/c6be7053-0028-485e-8597-859e145e2723",
+							},
+							"bypass_policy_lockout_safety_check": {
+								"computed": false,
+								"new":      "false",
+								"old":      "false",
+							},
+							"custom_key_store_id": {
+								"computed": false,
+								"new":      "",
+								"old":      "",
+							},
+							"customer_master_key_spec": {
+								"computed": false,
+								"new":      "SYMMETRIC_DEFAULT",
+								"old":      "SYMMETRIC_DEFAULT",
+							},
+							"deletion_window_in_days": {
+								"computed": false,
+								"new":      "7",
+								"old":      "7",
+							},
+							"description": {
+								"computed": false,
+								"new":      "atul0012345-sentinel-sovereignty DR snapshot key (us-east-1)",
+								"old":      "atul0012345-sentinel-sovereignty DR snapshot key (eu-central-1)",
+							},
+							"enable_key_rotation": {
+								"computed": false,
+								"new":      "true",
+								"old":      "true",
+							},
+							"id": {
+								"computed": true,
+								"new":      "",
+								"old":      "c6be7053-0028-485e-8597-859e145e2723",
+							},
+							"is_enabled": {
+								"computed": false,
+								"new":      "true",
+								"old":      "true",
+							},
+							"key_id": {
+								"computed": true,
+								"new":      "",
+								"old":      "c6be7053-0028-485e-8597-859e145e2723",
+							},
+							"key_usage": {
+								"computed": false,
+								"new":      "ENCRYPT_DECRYPT",
+								"old":      "ENCRYPT_DECRYPT",
+							},
+							"multi_region": {
+								"computed": true,
+								"new":      "",
+								"old":      "false",
+							},
+							"policy": {
+								"computed": true,
+								"new":      "",
+								"old":      "{\"Id\":\"key-default-1\",\"Statement\":[{\"Action\":\"kms:*\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::111122223333:root\"},\"Resource\":\"*\",\"Sid\":\"Enable IAM User Permissions\"}],\"Version\":\"2012-10-17\"}",
+							},
+							"region": {
+								"computed": false,
+								"new":      "us-east-1",
+								"old":      "eu-central-1",
+							},
+							"rotation_period_in_days": {
+								"computed": true,
+								"new":      "",
+								"old":      "365",
+							},
+							"tags": {
+								"computed": false,
+								"new":      "",
+								"old":      "",
+							},
+							"tags.%": {
+								"computed": false,
+								"new":      "",
+								"old":      "0",
+							},
+							"tags_all.%": {
+								"computed": false,
+								"new":      "4",
+								"old":      "4",
+							},
+							"tags_all.Jurisdiction": {
+								"computed": false,
+								"new":      "EU-IE",
+								"old":      "EU-IE",
+							},
+							"tags_all.ManagedBy": {
+								"computed": false,
+								"new":      "Terraform",
+								"old":      "Terraform",
+							},
+							"tags_all.Organisation": {
+								"computed": false,
+								"new":      "ATUL0012345",
+								"old":      "ATUL0012345",
+							},
+							"tags_all.Project": {
+								"computed": false,
+								"new":      "sentinel-sovereignty",
+								"old":      "sentinel-sovereignty",
+							},
+							"timeouts": {
+								"computed": false,
+								"new":      "",
+								"old":      "",
+							},
+							"xks_key_id": {
+								"computed": false,
+								"new":      "",
+								"old":      "",
+							},
+						},
+						"requires_new": true,
+					},
+				},
+			},
+		},
+	},
+
+	"module.vpc": {
+		"data": {},
+		"path": [
+			"vpc",
+		],
+		"resources": {},
+	},
+}
+
+module_paths = [
+	[],
+	[
+		"vpc",
+	],
+]
+
+terraform_version = "1.17.1"
+
+variables = {
+	"data_volume_size": 1,
+	"dr_region":        "us-east-1",
+	"instance_type":    "t3.micro",
+	"organisation":     "ATUL0012345",
+	"primary_region":   "eu-west-1",
+	"project":          "sentinel-sovereignty",
+	"vpc_cidr":         "10.20.0.0/16",
+}
+
+module = func(path) {
+	if types.type_of(path) is not "list" {
+		error("expected list, got", types.type_of(path))
+	}
+
+	if length(path) < 1 {
+		return _modules.root
+	}
+
+	addr = []
+	for path as p {
+		append(addr, "module")
+		append(addr, p)
+	}
+
+	return _modules[strings.join(addr, ".")]
+}
+
+data = _modules.root.data
+path = _modules.root.path
+resources = _modules.root.resources

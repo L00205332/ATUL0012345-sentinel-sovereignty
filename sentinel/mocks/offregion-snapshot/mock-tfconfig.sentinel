@@ -1,0 +1,5306 @@
+import "strings"
+import "types"
+
+_modules = {
+	"root": {
+		"data": {
+			"aws_ssm_parameter": {
+				"al2023_ami": {
+					"config": {
+						"name": "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64",
+					},
+					"provisioners": null,
+					"references": {
+						"name": [],
+					},
+				},
+			},
+		},
+		"modules": {
+			"vpc": {
+				"config": {
+					"default_security_group_egress":  [],
+					"default_security_group_ingress": [],
+					"enable_nat_gateway":             false,
+					"enable_vpn_gateway":             false,
+					"manage_default_security_group":  true,
+					"map_public_ip_on_launch":        true,
+				},
+				"references": {
+					"azs": [
+						"var.primary_region",
+					],
+					"cidr": [
+						"var.vpc_cidr",
+					],
+					"default_security_group_egress":  [],
+					"default_security_group_ingress": [],
+					"enable_nat_gateway":             [],
+					"enable_vpn_gateway":             [],
+					"manage_default_security_group":  [],
+					"map_public_ip_on_launch":        [],
+					"name": [
+						"local.name",
+					],
+					"public_subnets": [
+						"var.vpc_cidr",
+					],
+				},
+				"source":  "terraform-aws-modules/vpc/aws",
+				"version": "6.0.0",
+			},
+		},
+		"outputs": {
+			"data_volume_id": {
+				"depends_on":  [],
+				"description": "Sensitive data volume ID.",
+				"references": [
+					"aws_ebs_volume.data.id",
+					"aws_ebs_volume.data",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"dr_snapshot_id": {
+				"depends_on":  [],
+				"description": "Backup copy in the DR region.",
+				"references": [
+					"aws_ebs_snapshot_copy.data_dr.id",
+					"aws_ebs_snapshot_copy.data_dr",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"instance_id": {
+				"depends_on":  [],
+				"description": "EC2 instance ID (connect with: aws ssm start-session --target <id>).",
+				"references": [
+					"aws_instance.app.id",
+					"aws_instance.app",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"primary_snapshot_id": {
+				"depends_on":  [],
+				"description": "Backup snapshot in the primary region.",
+				"references": [
+					"aws_ebs_snapshot.data.id",
+					"aws_ebs_snapshot.data",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"regions": {
+				"depends_on":  [],
+				"description": "Regions used by this stack.",
+				"references": [
+					"var.primary_region",
+					"var.dr_region",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+		},
+		"providers": {
+			"aws": {
+				"alias": {
+					"": {
+						"config": {
+							"default_tags": [
+								{},
+							],
+						},
+						"references": {
+							"default_tags": [
+								{
+									"tags": [
+										"var.organisation",
+										"var.project",
+									],
+								},
+							],
+							"region": [
+								"var.primary_region",
+							],
+						},
+						"version": "~> 6.0",
+					},
+				},
+				"config": {
+					"default_tags": [
+						{},
+					],
+				},
+				"references": {
+					"default_tags": [
+						{
+							"tags": [
+								"var.organisation",
+								"var.project",
+							],
+						},
+					],
+					"region": [
+						"var.primary_region",
+					],
+				},
+				"version": "~> 6.0",
+			},
+		},
+		"resources": {
+			"aws_ebs_snapshot": {
+				"data": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"description": [
+							"local.name",
+							"var.primary_region",
+						],
+						"tags": [
+							"local.name",
+						],
+						"volume_id": [
+							"aws_ebs_volume.data.id",
+							"aws_ebs_volume.data",
+						],
+					},
+				},
+			},
+			"aws_ebs_snapshot_copy": {
+				"data_dr": {
+					"config": {
+						"encrypted": true,
+					},
+					"provisioners": null,
+					"references": {
+						"description": [
+							"local.name",
+							"var.dr_region",
+						],
+						"encrypted": [],
+						"kms_key_id": [
+							"aws_kms_key.dr.arn",
+							"aws_kms_key.dr",
+						],
+						"region": [
+							"var.dr_region",
+						],
+						"source_region": [
+							"var.primary_region",
+						],
+						"source_snapshot_id": [
+							"aws_ebs_snapshot.data.id",
+							"aws_ebs_snapshot.data",
+						],
+						"tags": [
+							"local.name",
+						],
+					},
+				},
+			},
+			"aws_ebs_volume": {
+				"data": {
+					"config": {
+						"encrypted": true,
+						"type":      "gp3",
+					},
+					"provisioners": null,
+					"references": {
+						"availability_zone": [
+							"aws_instance.app.availability_zone",
+							"aws_instance.app",
+						],
+						"encrypted": [],
+						"kms_key_id": [
+							"aws_kms_key.primary.arn",
+							"aws_kms_key.primary",
+						],
+						"size": [
+							"var.data_volume_size",
+						],
+						"tags": [
+							"local.name",
+						],
+						"type": [],
+					},
+				},
+			},
+			"aws_iam_instance_profile": {
+				"ssm": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"name": [
+							"local.name",
+						],
+						"role": [
+							"aws_iam_role.ssm.name",
+							"aws_iam_role.ssm",
+						],
+					},
+				},
+			},
+			"aws_iam_role": {
+				"ssm": {
+					"config": {
+						"assume_role_policy": null,
+					},
+					"provisioners": null,
+					"references": {
+						"assume_role_policy": [],
+						"name": [
+							"local.name",
+						],
+					},
+				},
+			},
+			"aws_iam_role_policy_attachment": {
+				"ssm_core": {
+					"config": {
+						"policy_arn": "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
+					},
+					"provisioners": null,
+					"references": {
+						"policy_arn": [],
+						"role": [
+							"aws_iam_role.ssm.name",
+							"aws_iam_role.ssm",
+						],
+					},
+				},
+			},
+			"aws_instance": {
+				"app": {
+					"config": {
+						"metadata_options": [
+							{
+								"http_endpoint":               "enabled",
+								"http_put_response_hop_limit": 1,
+								"http_tokens":                 "required",
+							},
+						],
+						"root_block_device": [
+							{
+								"encrypted":   true,
+								"volume_size": 8,
+								"volume_type": "gp3",
+							},
+						],
+					},
+					"provisioners": null,
+					"references": {
+						"ami": [
+							"data.aws_ssm_parameter.al2023_ami.value",
+							"data.aws_ssm_parameter.al2023_ami",
+						],
+						"iam_instance_profile": [
+							"aws_iam_instance_profile.ssm.name",
+							"aws_iam_instance_profile.ssm",
+						],
+						"instance_type": [
+							"var.instance_type",
+						],
+						"metadata_options": [
+							{
+								"http_endpoint":               [],
+								"http_put_response_hop_limit": [],
+								"http_tokens":                 [],
+							},
+						],
+						"root_block_device": [
+							{
+								"encrypted": [],
+								"kms_key_id": [
+									"aws_kms_key.primary.arn",
+									"aws_kms_key.primary",
+								],
+								"volume_size": [],
+								"volume_type": [],
+							},
+						],
+						"subnet_id": [
+							"module.vpc.public_subnets[0]",
+							"module.vpc.public_subnets",
+							"module.vpc",
+						],
+						"tags": [
+							"local.name",
+						],
+						"vpc_security_group_ids": [
+							"aws_security_group.app.id",
+							"aws_security_group.app",
+						],
+					},
+				},
+			},
+			"aws_kms_alias": {
+				"dr": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"name": [
+							"local.name",
+						],
+						"region": [
+							"var.dr_region",
+						],
+						"target_key_id": [
+							"aws_kms_key.dr.key_id",
+							"aws_kms_key.dr",
+						],
+					},
+				},
+				"primary": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"name": [
+							"local.name",
+						],
+						"target_key_id": [
+							"aws_kms_key.primary.key_id",
+							"aws_kms_key.primary",
+						],
+					},
+				},
+			},
+			"aws_kms_key": {
+				"dr": {
+					"config": {
+						"deletion_window_in_days": 7,
+						"enable_key_rotation":     true,
+					},
+					"provisioners": null,
+					"references": {
+						"deletion_window_in_days": [],
+						"description": [
+							"local.name",
+							"var.dr_region",
+						],
+						"enable_key_rotation": [],
+						"region": [
+							"var.dr_region",
+						],
+					},
+				},
+				"primary": {
+					"config": {
+						"deletion_window_in_days": 7,
+						"enable_key_rotation":     true,
+					},
+					"provisioners": null,
+					"references": {
+						"deletion_window_in_days": [],
+						"description": [
+							"local.name",
+							"var.primary_region",
+						],
+						"enable_key_rotation": [],
+					},
+				},
+			},
+			"aws_security_group": {
+				"app": {
+					"config": {
+						"description": "App instance: no inbound access, outbound HTTPS only",
+					},
+					"provisioners": null,
+					"references": {
+						"description": [],
+						"name": [
+							"local.name",
+						],
+						"vpc_id": [
+							"module.vpc.vpc_id",
+							"module.vpc",
+						],
+					},
+				},
+			},
+			"aws_volume_attachment": {
+				"data": {
+					"config": {
+						"device_name": "/dev/sdf",
+					},
+					"provisioners": null,
+					"references": {
+						"device_name": [],
+						"instance_id": [
+							"aws_instance.app.id",
+							"aws_instance.app",
+						],
+						"volume_id": [
+							"aws_ebs_volume.data.id",
+							"aws_ebs_volume.data",
+						],
+					},
+				},
+			},
+			"aws_vpc_security_group_egress_rule": {
+				"app_https_out": {
+					"config": {
+						"cidr_ipv4":   "0.0.0.0/0",
+						"description": "HTTPS to AWS endpoints (SSM) and package repositories",
+						"from_port":   443,
+						"ip_protocol": "tcp",
+						"to_port":     443,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_ipv4":   [],
+						"description": [],
+						"from_port":   [],
+						"ip_protocol": [],
+						"security_group_id": [
+							"aws_security_group.app.id",
+							"aws_security_group.app",
+						],
+						"to_port": [],
+					},
+				},
+			},
+		},
+		"variables": {
+			"data_volume_size": {
+				"default":     1,
+				"description": "Size in GiB of the sensitive data volume.",
+			},
+			"dr_region": {
+				"default":     "us-east-1",
+				"description": "Disaster recovery region for backup copies only. Must stay inside the EU.",
+			},
+			"instance_type": {
+				"default":     "t3.micro",
+				"description": "EC2 instance type. Must be on the approved list in instance_type.sentinel.",
+			},
+			"organisation": {
+				"default":     "ATUL0012345",
+				"description": "Organisation identifier, used in names and tags.",
+			},
+			"primary_region": {
+				"default":     "eu-west-1",
+				"description": "Primary region for compute, network and data (Ireland).",
+			},
+			"project": {
+				"default":     "sentinel-sovereignty",
+				"description": "Project name, used in names and tags.",
+			},
+			"vpc_cidr": {
+				"default":     "10.20.0.0/16",
+				"description": "CIDR block of the VPC.",
+			},
+		},
+	},
+
+	"module.vpc": {
+		"data": {
+			"aws_caller_identity": {
+				"current": {
+					"config":       {},
+					"provisioners": null,
+					"references":   {},
+				},
+			},
+			"aws_iam_policy_document": {
+				"flow_log_cloudwatch_assume_role": {
+					"config": {
+						"statement": [
+							{
+								"actions": [
+									"sts:AssumeRole",
+								],
+								"effect": "Allow",
+								"principals": [
+									{
+										"identifiers": [
+											"vpc-flow-logs.amazonaws.com",
+										],
+										"type": "Service",
+									},
+								],
+								"sid": "AWSVPCFlowLogsAssumeRole",
+							},
+						],
+					},
+					"provisioners": null,
+					"references": {
+						"statement": [
+							{
+								"actions": [],
+								"effect":  [],
+								"principals": [
+									{
+										"identifiers": [],
+										"type":        [],
+									},
+								],
+								"sid": [],
+							},
+						],
+					},
+				},
+				"vpc_flow_log_cloudwatch": {
+					"config": {
+						"statement": [
+							{
+								"actions": [
+									"logs:CreateLogStream",
+									"logs:PutLogEvents",
+									"logs:DescribeLogGroups",
+									"logs:DescribeLogStreams",
+								],
+								"effect": "Allow",
+								"sid":    "AWSVPCFlowLogsPushToCloudWatch",
+							},
+						],
+					},
+					"provisioners": null,
+					"references": {
+						"statement": [
+							{
+								"actions": [],
+								"effect":  [],
+								"resources": [
+									"local.flow_log_group_arns",
+								],
+								"sid": [],
+							},
+						],
+					},
+				},
+			},
+			"aws_partition": {
+				"current": {
+					"config":       {},
+					"provisioners": null,
+					"references":   {},
+				},
+			},
+			"aws_region": {
+				"current": {
+					"config":       {},
+					"provisioners": null,
+					"references":   {},
+				},
+			},
+		},
+		"modules": {},
+		"outputs": {
+			"azs": {
+				"depends_on":  [],
+				"description": "A list of availability zones specified as argument to this module",
+				"references": [
+					"var.azs",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"cgw_arns": {
+				"depends_on":  [],
+				"description": "List of ARNs of Customer Gateway",
+				"references": [
+					"aws_customer_gateway.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"cgw_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of Customer Gateway",
+				"references": [
+					"aws_customer_gateway.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_internet_gateway_route_id": {
+				"depends_on":  [],
+				"description": "ID of the database internet gateway route",
+				"references": [
+					"aws_route.database_internet_gateway[0].id",
+					"aws_route.database_internet_gateway[0]",
+					"aws_route.database_internet_gateway",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_ipv6_egress_route_id": {
+				"depends_on":  [],
+				"description": "ID of the database IPv6 egress route",
+				"references": [
+					"aws_route.database_ipv6_egress[0].id",
+					"aws_route.database_ipv6_egress[0]",
+					"aws_route.database_ipv6_egress",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_nat_gateway_route_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of the database nat gateway route",
+				"references": [
+					"aws_route.database_nat_gateway",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_network_acl_arn": {
+				"depends_on":  [],
+				"description": "ARN of the database network ACL",
+				"references": [
+					"aws_network_acl.database[0].arn",
+					"aws_network_acl.database[0]",
+					"aws_network_acl.database",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_network_acl_id": {
+				"depends_on":  [],
+				"description": "ID of the database network ACL",
+				"references": [
+					"aws_network_acl.database[0].id",
+					"aws_network_acl.database[0]",
+					"aws_network_acl.database",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_route_table_association_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of the database route table association",
+				"references": [
+					"aws_route_table_association.database",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_route_table_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of database route tables",
+				"references": [
+					"aws_route_table.database",
+					"aws_route_table.database",
+					"aws_route_table.private",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_subnet_arns": {
+				"depends_on":  [],
+				"description": "List of ARNs of database subnets",
+				"references": [
+					"aws_subnet.database",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_subnet_group": {
+				"depends_on":  [],
+				"description": "ID of database subnet group",
+				"references": [
+					"aws_db_subnet_group.database[0].id",
+					"aws_db_subnet_group.database[0]",
+					"aws_db_subnet_group.database",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_subnet_group_name": {
+				"depends_on":  [],
+				"description": "Name of database subnet group",
+				"references": [
+					"aws_db_subnet_group.database[0].name",
+					"aws_db_subnet_group.database[0]",
+					"aws_db_subnet_group.database",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_subnet_objects": {
+				"depends_on":  [],
+				"description": "A list of all database subnets, containing the full objects.",
+				"references": [
+					"aws_subnet.database",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_subnets": {
+				"depends_on":  [],
+				"description": "List of IDs of database subnets",
+				"references": [
+					"aws_subnet.database",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_subnets_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of cidr_blocks of database subnets",
+				"references": [
+					"aws_subnet.database",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"database_subnets_ipv6_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of IPv6 cidr_blocks of database subnets in an IPv6 enabled VPC",
+				"references": [
+					"aws_subnet.database",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_network_acl_id": {
+				"depends_on":  [],
+				"description": "The ID of the default network ACL",
+				"references": [
+					"aws_vpc.this[0].default_network_acl_id",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_route_table_id": {
+				"depends_on":  [],
+				"description": "The ID of the default route table",
+				"references": [
+					"aws_vpc.this[0].default_route_table_id",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_security_group_id": {
+				"depends_on":  [],
+				"description": "The ID of the security group created by default on VPC creation",
+				"references": [
+					"aws_vpc.this[0].default_security_group_id",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_vpc_arn": {
+				"depends_on":  [],
+				"description": "The ARN of the Default VPC",
+				"references": [
+					"aws_default_vpc.this[0].arn",
+					"aws_default_vpc.this[0]",
+					"aws_default_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_vpc_cidr_block": {
+				"depends_on":  [],
+				"description": "The CIDR block of the Default VPC",
+				"references": [
+					"aws_default_vpc.this[0].cidr_block",
+					"aws_default_vpc.this[0]",
+					"aws_default_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_vpc_default_network_acl_id": {
+				"depends_on":  [],
+				"description": "The ID of the default network ACL of the Default VPC",
+				"references": [
+					"aws_default_vpc.this[0].default_network_acl_id",
+					"aws_default_vpc.this[0]",
+					"aws_default_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_vpc_default_route_table_id": {
+				"depends_on":  [],
+				"description": "The ID of the default route table of the Default VPC",
+				"references": [
+					"aws_default_vpc.this[0].default_route_table_id",
+					"aws_default_vpc.this[0]",
+					"aws_default_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_vpc_default_security_group_id": {
+				"depends_on":  [],
+				"description": "The ID of the security group created by default on Default VPC creation",
+				"references": [
+					"aws_default_vpc.this[0].default_security_group_id",
+					"aws_default_vpc.this[0]",
+					"aws_default_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_vpc_enable_dns_hostnames": {
+				"depends_on":  [],
+				"description": "Whether or not the Default VPC has DNS hostname support",
+				"references": [
+					"aws_default_vpc.this[0].enable_dns_hostnames",
+					"aws_default_vpc.this[0]",
+					"aws_default_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_vpc_enable_dns_support": {
+				"depends_on":  [],
+				"description": "Whether or not the Default VPC has DNS support",
+				"references": [
+					"aws_default_vpc.this[0].enable_dns_support",
+					"aws_default_vpc.this[0]",
+					"aws_default_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_vpc_id": {
+				"depends_on":  [],
+				"description": "The ID of the Default VPC",
+				"references": [
+					"aws_default_vpc.this[0].id",
+					"aws_default_vpc.this[0]",
+					"aws_default_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_vpc_instance_tenancy": {
+				"depends_on":  [],
+				"description": "Tenancy of instances spin up within Default VPC",
+				"references": [
+					"aws_default_vpc.this[0].instance_tenancy",
+					"aws_default_vpc.this[0]",
+					"aws_default_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"default_vpc_main_route_table_id": {
+				"depends_on":  [],
+				"description": "The ID of the main route table associated with the Default VPC",
+				"references": [
+					"aws_default_vpc.this[0].main_route_table_id",
+					"aws_default_vpc.this[0]",
+					"aws_default_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"dhcp_options_id": {
+				"depends_on":  [],
+				"description": "The ID of the DHCP options",
+				"references": [
+					"aws_vpc_dhcp_options.this[0].id",
+					"aws_vpc_dhcp_options.this[0]",
+					"aws_vpc_dhcp_options.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"egress_only_internet_gateway_id": {
+				"depends_on":  [],
+				"description": "The ID of the egress only Internet Gateway",
+				"references": [
+					"aws_egress_only_internet_gateway.this[0].id",
+					"aws_egress_only_internet_gateway.this[0]",
+					"aws_egress_only_internet_gateway.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"elasticache_network_acl_arn": {
+				"depends_on":  [],
+				"description": "ARN of the elasticache network ACL",
+				"references": [
+					"aws_network_acl.elasticache[0].arn",
+					"aws_network_acl.elasticache[0]",
+					"aws_network_acl.elasticache",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"elasticache_network_acl_id": {
+				"depends_on":  [],
+				"description": "ID of the elasticache network ACL",
+				"references": [
+					"aws_network_acl.elasticache[0].id",
+					"aws_network_acl.elasticache[0]",
+					"aws_network_acl.elasticache",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"elasticache_route_table_association_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of the elasticache route table association",
+				"references": [
+					"aws_route_table_association.elasticache",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"elasticache_route_table_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of elasticache route tables",
+				"references": [
+					"aws_route_table.elasticache",
+					"local.private_route_table_ids",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"elasticache_subnet_arns": {
+				"depends_on":  [],
+				"description": "List of ARNs of elasticache subnets",
+				"references": [
+					"aws_subnet.elasticache",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"elasticache_subnet_group": {
+				"depends_on":  [],
+				"description": "ID of elasticache subnet group",
+				"references": [
+					"aws_elasticache_subnet_group.elasticache[0].id",
+					"aws_elasticache_subnet_group.elasticache[0]",
+					"aws_elasticache_subnet_group.elasticache",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"elasticache_subnet_group_name": {
+				"depends_on":  [],
+				"description": "Name of elasticache subnet group",
+				"references": [
+					"aws_elasticache_subnet_group.elasticache[0].name",
+					"aws_elasticache_subnet_group.elasticache[0]",
+					"aws_elasticache_subnet_group.elasticache",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"elasticache_subnet_objects": {
+				"depends_on":  [],
+				"description": "A list of all elasticache subnets, containing the full objects.",
+				"references": [
+					"aws_subnet.elasticache",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"elasticache_subnets": {
+				"depends_on":  [],
+				"description": "List of IDs of elasticache subnets",
+				"references": [
+					"aws_subnet.elasticache",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"elasticache_subnets_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of cidr_blocks of elasticache subnets",
+				"references": [
+					"aws_subnet.elasticache",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"elasticache_subnets_ipv6_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of IPv6 cidr_blocks of elasticache subnets in an IPv6 enabled VPC",
+				"references": [
+					"aws_subnet.elasticache",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"igw_arn": {
+				"depends_on":  [],
+				"description": "The ARN of the Internet Gateway",
+				"references": [
+					"aws_internet_gateway.this[0].arn",
+					"aws_internet_gateway.this[0]",
+					"aws_internet_gateway.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"igw_id": {
+				"depends_on":  [],
+				"description": "The ID of the Internet Gateway",
+				"references": [
+					"aws_internet_gateway.this[0].id",
+					"aws_internet_gateway.this[0]",
+					"aws_internet_gateway.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"intra_network_acl_arn": {
+				"depends_on":  [],
+				"description": "ARN of the intra network ACL",
+				"references": [
+					"aws_network_acl.intra[0].arn",
+					"aws_network_acl.intra[0]",
+					"aws_network_acl.intra",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"intra_network_acl_id": {
+				"depends_on":  [],
+				"description": "ID of the intra network ACL",
+				"references": [
+					"aws_network_acl.intra[0].id",
+					"aws_network_acl.intra[0]",
+					"aws_network_acl.intra",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"intra_route_table_association_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of the intra route table association",
+				"references": [
+					"aws_route_table_association.intra",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"intra_route_table_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of intra route tables",
+				"references": [
+					"aws_route_table.intra",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"intra_subnet_arns": {
+				"depends_on":  [],
+				"description": "List of ARNs of intra subnets",
+				"references": [
+					"aws_subnet.intra",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"intra_subnet_objects": {
+				"depends_on":  [],
+				"description": "A list of all intra subnets, containing the full objects.",
+				"references": [
+					"aws_subnet.intra",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"intra_subnets": {
+				"depends_on":  [],
+				"description": "List of IDs of intra subnets",
+				"references": [
+					"aws_subnet.intra",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"intra_subnets_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of cidr_blocks of intra subnets",
+				"references": [
+					"aws_subnet.intra",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"intra_subnets_ipv6_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of IPv6 cidr_blocks of intra subnets in an IPv6 enabled VPC",
+				"references": [
+					"aws_subnet.intra",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"name": {
+				"depends_on":  [],
+				"description": "The name of the VPC specified as argument to this module",
+				"references": [
+					"var.name",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"nat_ids": {
+				"depends_on":  [],
+				"description": "List of allocation ID of Elastic IPs created for AWS NAT Gateway",
+				"references": [
+					"aws_eip.nat",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"nat_public_ips": {
+				"depends_on":  [],
+				"description": "List of public Elastic IPs created for AWS NAT Gateway",
+				"references": [
+					"var.reuse_nat_ips",
+					"var.external_nat_ips",
+					"aws_eip.nat",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"natgw_ids": {
+				"depends_on":  [],
+				"description": "List of NAT Gateway IDs",
+				"references": [
+					"aws_nat_gateway.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"natgw_interface_ids": {
+				"depends_on":  [],
+				"description": "List of Network Interface IDs assigned to NAT Gateways",
+				"references": [
+					"aws_nat_gateway.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"outpost_network_acl_arn": {
+				"depends_on":  [],
+				"description": "ARN of the outpost network ACL",
+				"references": [
+					"aws_network_acl.outpost[0].arn",
+					"aws_network_acl.outpost[0]",
+					"aws_network_acl.outpost",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"outpost_network_acl_id": {
+				"depends_on":  [],
+				"description": "ID of the outpost network ACL",
+				"references": [
+					"aws_network_acl.outpost[0].id",
+					"aws_network_acl.outpost[0]",
+					"aws_network_acl.outpost",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"outpost_subnet_arns": {
+				"depends_on":  [],
+				"description": "List of ARNs of outpost subnets",
+				"references": [
+					"aws_subnet.outpost",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"outpost_subnet_objects": {
+				"depends_on":  [],
+				"description": "A list of all outpost subnets, containing the full objects.",
+				"references": [
+					"aws_subnet.outpost",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"outpost_subnets": {
+				"depends_on":  [],
+				"description": "List of IDs of outpost subnets",
+				"references": [
+					"aws_subnet.outpost",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"outpost_subnets_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of cidr_blocks of outpost subnets",
+				"references": [
+					"aws_subnet.outpost",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"outpost_subnets_ipv6_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of IPv6 cidr_blocks of outpost subnets in an IPv6 enabled VPC",
+				"references": [
+					"aws_subnet.outpost",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"private_ipv6_egress_route_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of the ipv6 egress route",
+				"references": [
+					"aws_route.private_ipv6_egress",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"private_nat_gateway_route_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of the private nat gateway route",
+				"references": [
+					"aws_route.private_nat_gateway",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"private_network_acl_arn": {
+				"depends_on":  [],
+				"description": "ARN of the private network ACL",
+				"references": [
+					"aws_network_acl.private[0].arn",
+					"aws_network_acl.private[0]",
+					"aws_network_acl.private",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"private_network_acl_id": {
+				"depends_on":  [],
+				"description": "ID of the private network ACL",
+				"references": [
+					"aws_network_acl.private[0].id",
+					"aws_network_acl.private[0]",
+					"aws_network_acl.private",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"private_route_table_association_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of the private route table association",
+				"references": [
+					"aws_route_table_association.private",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"private_route_table_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of private route tables",
+				"references": [
+					"local.private_route_table_ids",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"private_subnet_arns": {
+				"depends_on":  [],
+				"description": "List of ARNs of private subnets",
+				"references": [
+					"aws_subnet.private",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"private_subnet_objects": {
+				"depends_on":  [],
+				"description": "A list of all private subnets, containing the full objects.",
+				"references": [
+					"aws_subnet.private",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"private_subnets": {
+				"depends_on":  [],
+				"description": "List of IDs of private subnets",
+				"references": [
+					"aws_subnet.private",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"private_subnets_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of cidr_blocks of private subnets",
+				"references": [
+					"aws_subnet.private",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"private_subnets_ipv6_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of IPv6 cidr_blocks of private subnets in an IPv6 enabled VPC",
+				"references": [
+					"aws_subnet.private",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"public_internet_gateway_ipv6_route_id": {
+				"depends_on":  [],
+				"description": "ID of the IPv6 internet gateway route",
+				"references": [
+					"aws_route.public_internet_gateway_ipv6[0].id",
+					"aws_route.public_internet_gateway_ipv6[0]",
+					"aws_route.public_internet_gateway_ipv6",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"public_internet_gateway_route_id": {
+				"depends_on":  [],
+				"description": "ID of the internet gateway route",
+				"references": [
+					"aws_route.public_internet_gateway[0].id",
+					"aws_route.public_internet_gateway[0]",
+					"aws_route.public_internet_gateway",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"public_network_acl_arn": {
+				"depends_on":  [],
+				"description": "ARN of the public network ACL",
+				"references": [
+					"aws_network_acl.public[0].arn",
+					"aws_network_acl.public[0]",
+					"aws_network_acl.public",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"public_network_acl_id": {
+				"depends_on":  [],
+				"description": "ID of the public network ACL",
+				"references": [
+					"aws_network_acl.public[0].id",
+					"aws_network_acl.public[0]",
+					"aws_network_acl.public",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"public_route_table_association_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of the public route table association",
+				"references": [
+					"aws_route_table_association.public",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"public_route_table_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of public route tables",
+				"references": [
+					"local.public_route_table_ids",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"public_subnet_arns": {
+				"depends_on":  [],
+				"description": "List of ARNs of public subnets",
+				"references": [
+					"aws_subnet.public",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"public_subnet_objects": {
+				"depends_on":  [],
+				"description": "A list of all public subnets, containing the full objects.",
+				"references": [
+					"aws_subnet.public",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"public_subnets": {
+				"depends_on":  [],
+				"description": "List of IDs of public subnets",
+				"references": [
+					"aws_subnet.public",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"public_subnets_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of cidr_blocks of public subnets",
+				"references": [
+					"aws_subnet.public",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"public_subnets_ipv6_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of IPv6 cidr_blocks of public subnets in an IPv6 enabled VPC",
+				"references": [
+					"aws_subnet.public",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"redshift_network_acl_arn": {
+				"depends_on":  [],
+				"description": "ARN of the redshift network ACL",
+				"references": [
+					"aws_network_acl.redshift[0].arn",
+					"aws_network_acl.redshift[0]",
+					"aws_network_acl.redshift",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"redshift_network_acl_id": {
+				"depends_on":  [],
+				"description": "ID of the redshift network ACL",
+				"references": [
+					"aws_network_acl.redshift[0].id",
+					"aws_network_acl.redshift[0]",
+					"aws_network_acl.redshift",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"redshift_public_route_table_association_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of the public redshift route table association",
+				"references": [
+					"aws_route_table_association.redshift_public",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"redshift_route_table_association_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of the redshift route table association",
+				"references": [
+					"aws_route_table_association.redshift",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"redshift_route_table_ids": {
+				"depends_on":  [],
+				"description": "List of IDs of redshift route tables",
+				"references": [
+					"local.redshift_route_table_ids",
+					"local.redshift_route_table_ids",
+					"var.enable_public_redshift",
+					"local.public_route_table_ids",
+					"local.private_route_table_ids",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"redshift_subnet_arns": {
+				"depends_on":  [],
+				"description": "List of ARNs of redshift subnets",
+				"references": [
+					"aws_subnet.redshift",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"redshift_subnet_group": {
+				"depends_on":  [],
+				"description": "ID of redshift subnet group",
+				"references": [
+					"aws_redshift_subnet_group.redshift[0].id",
+					"aws_redshift_subnet_group.redshift[0]",
+					"aws_redshift_subnet_group.redshift",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"redshift_subnet_objects": {
+				"depends_on":  [],
+				"description": "A list of all redshift subnets, containing the full objects.",
+				"references": [
+					"aws_subnet.redshift",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"redshift_subnets": {
+				"depends_on":  [],
+				"description": "List of IDs of redshift subnets",
+				"references": [
+					"aws_subnet.redshift",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"redshift_subnets_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of cidr_blocks of redshift subnets",
+				"references": [
+					"aws_subnet.redshift",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"redshift_subnets_ipv6_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of IPv6 cidr_blocks of redshift subnets in an IPv6 enabled VPC",
+				"references": [
+					"aws_subnet.redshift",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"this_customer_gateway": {
+				"depends_on":  [],
+				"description": "Map of Customer Gateway attributes",
+				"references": [
+					"aws_customer_gateway.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vgw_arn": {
+				"depends_on":  [],
+				"description": "The ARN of the VPN Gateway",
+				"references": [
+					"aws_vpn_gateway.this[0].arn",
+					"aws_vpn_gateway.this[0]",
+					"aws_vpn_gateway.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vgw_id": {
+				"depends_on":  [],
+				"description": "The ID of the VPN Gateway",
+				"references": [
+					"aws_vpn_gateway.this[0].id",
+					"aws_vpn_gateway.this[0]",
+					"aws_vpn_gateway.this",
+					"aws_vpn_gateway_attachment.this[0].vpn_gateway_id",
+					"aws_vpn_gateway_attachment.this[0]",
+					"aws_vpn_gateway_attachment.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_arn": {
+				"depends_on":  [],
+				"description": "The ARN of the VPC",
+				"references": [
+					"aws_vpc.this[0].arn",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_block_public_access_exclusions": {
+				"depends_on":  [],
+				"description": "A map of VPC block public access exclusions",
+				"references": [
+					"aws_vpc_block_public_access_exclusion.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_cidr_block": {
+				"depends_on":  [],
+				"description": "The CIDR block of the VPC",
+				"references": [
+					"aws_vpc.this[0].cidr_block",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_enable_dns_hostnames": {
+				"depends_on":  [],
+				"description": "Whether or not the VPC has DNS hostname support",
+				"references": [
+					"aws_vpc.this[0].enable_dns_hostnames",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_enable_dns_support": {
+				"depends_on":  [],
+				"description": "Whether or not the VPC has DNS support",
+				"references": [
+					"aws_vpc.this[0].enable_dns_support",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_flow_log_cloudwatch_iam_role_arn": {
+				"depends_on":  [],
+				"description": "The ARN of the IAM role used when pushing logs to Cloudwatch log group",
+				"references": [
+					"local.flow_log_iam_role_arn",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_flow_log_deliver_cross_account_role": {
+				"depends_on":  [],
+				"description": "The ARN of the IAM role used when pushing logs cross account",
+				"references": [
+					"aws_flow_log.this[0].deliver_cross_account_role",
+					"aws_flow_log.this[0]",
+					"aws_flow_log.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_flow_log_destination_arn": {
+				"depends_on":  [],
+				"description": "The ARN of the destination for VPC Flow Logs",
+				"references": [
+					"local.flow_log_destination_arn",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_flow_log_destination_type": {
+				"depends_on":  [],
+				"description": "The type of the destination for VPC Flow Logs",
+				"references": [
+					"var.flow_log_destination_type",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_flow_log_id": {
+				"depends_on":  [],
+				"description": "The ID of the Flow Log resource",
+				"references": [
+					"aws_flow_log.this[0].id",
+					"aws_flow_log.this[0]",
+					"aws_flow_log.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_id": {
+				"depends_on":  [],
+				"description": "The ID of the VPC",
+				"references": [
+					"aws_vpc.this[0].id",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_instance_tenancy": {
+				"depends_on":  [],
+				"description": "Tenancy of instances spin up within VPC",
+				"references": [
+					"aws_vpc.this[0].instance_tenancy",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_ipv6_association_id": {
+				"depends_on":  [],
+				"description": "The association ID for the IPv6 CIDR block",
+				"references": [
+					"aws_vpc.this[0].ipv6_association_id",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_ipv6_cidr_block": {
+				"depends_on":  [],
+				"description": "The IPv6 CIDR block",
+				"references": [
+					"aws_vpc.this[0].ipv6_cidr_block",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_main_route_table_id": {
+				"depends_on":  [],
+				"description": "The ID of the main route table associated with this VPC",
+				"references": [
+					"aws_vpc.this[0].main_route_table_id",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_owner_id": {
+				"depends_on":  [],
+				"description": "The ID of the AWS account that owns the VPC",
+				"references": [
+					"aws_vpc.this[0].owner_id",
+					"aws_vpc.this[0]",
+					"aws_vpc.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+			"vpc_secondary_cidr_blocks": {
+				"depends_on":  [],
+				"description": "List of secondary CIDR blocks of the VPC",
+				"references": [
+					"aws_vpc_ipv4_cidr_block_association.this",
+				],
+				"sensitive": false,
+				"value":     undefined,
+			},
+		},
+		"providers": {},
+		"resources": {
+			"aws_cloudwatch_log_group": {
+				"flow_log": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"kms_key_id": [
+							"var.flow_log_cloudwatch_log_group_kms_key_id",
+						],
+						"log_group_class": [
+							"var.flow_log_cloudwatch_log_group_class",
+						],
+						"name": [
+							"var.flow_log_cloudwatch_log_group_name_prefix",
+							"local.flow_log_cloudwatch_log_group_name_suffix",
+						],
+						"retention_in_days": [
+							"var.flow_log_cloudwatch_log_group_retention_in_days",
+						],
+						"skip_destroy": [
+							"var.flow_log_cloudwatch_log_group_skip_destroy",
+						],
+						"tags": [
+							"var.tags",
+							"var.vpc_flow_log_tags",
+						],
+					},
+				},
+			},
+			"aws_customer_gateway": {
+				"this": {
+					"config": {
+						"type": "ipsec.1",
+					},
+					"provisioners": null,
+					"references": {
+						"bgp_asn": [
+							"each.value[\"bgp_asn\"]",
+							"each.value",
+						],
+						"device_name": [
+							"each.value",
+						],
+						"ip_address": [
+							"each.value[\"ip_address\"]",
+							"each.value",
+						],
+						"tags": [
+							"var.name",
+							"each.key",
+							"var.tags",
+							"var.customer_gateway_tags",
+						],
+						"type": [],
+					},
+				},
+			},
+			"aws_db_subnet_group": {
+				"database": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"description": [
+							"var.name",
+						],
+						"name": [
+							"var.database_subnet_group_name",
+							"var.name",
+						],
+						"subnet_ids": [
+							"aws_subnet.database",
+						],
+						"tags": [
+							"var.database_subnet_group_name",
+							"var.name",
+							"var.tags",
+							"var.database_subnet_group_tags",
+						],
+					},
+				},
+			},
+			"aws_default_network_acl": {
+				"this": {
+					"config": {
+						"subnet_ids": null,
+					},
+					"provisioners": null,
+					"references": {
+						"default_network_acl_id": [
+							"aws_vpc.this[0].default_network_acl_id",
+							"aws_vpc.this[0]",
+							"aws_vpc.this",
+						],
+						"subnet_ids": [],
+						"tags": [
+							"var.default_network_acl_name",
+							"var.name",
+							"var.tags",
+							"var.default_network_acl_tags",
+						],
+					},
+				},
+			},
+			"aws_default_route_table": {
+				"default": {
+					"config": {
+						"timeouts": null,
+					},
+					"provisioners": null,
+					"references": {
+						"default_route_table_id": [
+							"aws_vpc.this[0].default_route_table_id",
+							"aws_vpc.this[0]",
+							"aws_vpc.this",
+						],
+						"propagating_vgws": [
+							"var.default_route_table_propagating_vgws",
+						],
+						"tags": [
+							"var.default_route_table_name",
+							"var.name",
+							"var.tags",
+							"var.default_route_table_tags",
+						],
+						"timeouts": [],
+					},
+				},
+			},
+			"aws_default_security_group": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"tags": [
+							"var.default_security_group_name",
+							"var.name",
+							"var.tags",
+							"var.default_security_group_tags",
+						],
+						"vpc_id": [
+							"aws_vpc.this[0].id",
+							"aws_vpc.this[0]",
+							"aws_vpc.this",
+						],
+					},
+				},
+			},
+			"aws_default_vpc": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"enable_dns_hostnames": [
+							"var.default_vpc_enable_dns_hostnames",
+						],
+						"enable_dns_support": [
+							"var.default_vpc_enable_dns_support",
+						],
+						"tags": [
+							"var.default_vpc_name",
+							"var.tags",
+							"var.default_vpc_tags",
+						],
+					},
+				},
+			},
+			"aws_egress_only_internet_gateway": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"tags": [
+							"var.name",
+							"var.tags",
+							"var.igw_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+			},
+			"aws_eip": {
+				"nat": {
+					"config": {
+						"domain": "vpc",
+					},
+					"provisioners": null,
+					"references": {
+						"domain": [],
+						"tags": [
+							"var.name",
+							"var.azs",
+							"var.single_nat_gateway",
+							"count.index",
+							"var.tags",
+							"var.nat_eip_tags",
+						],
+					},
+				},
+			},
+			"aws_elasticache_subnet_group": {
+				"elasticache": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"description": [
+							"var.name",
+						],
+						"name": [
+							"var.elasticache_subnet_group_name",
+							"var.name",
+						],
+						"subnet_ids": [
+							"aws_subnet.elasticache",
+						],
+						"tags": [
+							"var.elasticache_subnet_group_name",
+							"var.name",
+							"var.tags",
+							"var.elasticache_subnet_group_tags",
+						],
+					},
+				},
+			},
+			"aws_flow_log": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"deliver_cross_account_role": [
+							"var.flow_log_deliver_cross_account_role",
+						],
+						"iam_role_arn": [
+							"local.flow_log_iam_role_arn",
+						],
+						"log_destination": [
+							"local.flow_log_destination_arn",
+						],
+						"log_destination_type": [
+							"var.flow_log_destination_type",
+						],
+						"log_format": [
+							"var.flow_log_log_format",
+						],
+						"max_aggregation_interval": [
+							"var.flow_log_max_aggregation_interval",
+						],
+						"tags": [
+							"var.tags",
+							"var.vpc_flow_log_tags",
+						],
+						"traffic_type": [
+							"var.flow_log_traffic_type",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+			},
+			"aws_iam_policy": {
+				"vpc_flow_log_cloudwatch": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"name": [
+							"var.vpc_flow_log_iam_policy_use_name_prefix",
+							"var.vpc_flow_log_iam_policy_name",
+						],
+						"name_prefix": [
+							"var.vpc_flow_log_iam_policy_use_name_prefix",
+							"var.vpc_flow_log_iam_policy_name",
+						],
+						"policy": [
+							"data.aws_iam_policy_document.vpc_flow_log_cloudwatch[0].json",
+							"data.aws_iam_policy_document.vpc_flow_log_cloudwatch[0]",
+							"data.aws_iam_policy_document.vpc_flow_log_cloudwatch",
+						],
+						"tags": [
+							"var.tags",
+							"var.vpc_flow_log_tags",
+						],
+					},
+				},
+			},
+			"aws_iam_role": {
+				"vpc_flow_log_cloudwatch": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"assume_role_policy": [
+							"data.aws_iam_policy_document.flow_log_cloudwatch_assume_role[0].json",
+							"data.aws_iam_policy_document.flow_log_cloudwatch_assume_role[0]",
+							"data.aws_iam_policy_document.flow_log_cloudwatch_assume_role",
+						],
+						"name": [
+							"var.vpc_flow_log_iam_role_use_name_prefix",
+							"var.vpc_flow_log_iam_role_name",
+						],
+						"name_prefix": [
+							"var.vpc_flow_log_iam_role_use_name_prefix",
+							"var.vpc_flow_log_iam_role_name",
+						],
+						"permissions_boundary": [
+							"var.vpc_flow_log_permissions_boundary",
+						],
+						"tags": [
+							"var.tags",
+							"var.vpc_flow_log_tags",
+						],
+					},
+				},
+			},
+			"aws_iam_role_policy_attachment": {
+				"vpc_flow_log_cloudwatch": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"policy_arn": [
+							"aws_iam_policy.vpc_flow_log_cloudwatch[0].arn",
+							"aws_iam_policy.vpc_flow_log_cloudwatch[0]",
+							"aws_iam_policy.vpc_flow_log_cloudwatch",
+						],
+						"role": [
+							"aws_iam_role.vpc_flow_log_cloudwatch[0].name",
+							"aws_iam_role.vpc_flow_log_cloudwatch[0]",
+							"aws_iam_role.vpc_flow_log_cloudwatch",
+						],
+					},
+				},
+			},
+			"aws_internet_gateway": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"tags": [
+							"var.name",
+							"var.tags",
+							"var.igw_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+			},
+			"aws_nat_gateway": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"allocation_id": [
+							"local.nat_gateway_ips",
+							"var.single_nat_gateway",
+							"count.index",
+						],
+						"subnet_id": [
+							"aws_subnet.public",
+							"var.single_nat_gateway",
+							"count.index",
+						],
+						"tags": [
+							"var.name",
+							"var.azs",
+							"var.single_nat_gateway",
+							"count.index",
+							"var.tags",
+							"var.nat_gateway_tags",
+						],
+					},
+				},
+			},
+			"aws_network_acl": {
+				"database": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"subnet_ids": [
+							"aws_subnet.database",
+						],
+						"tags": [
+							"var.name",
+							"var.database_subnet_suffix",
+							"var.tags",
+							"var.database_acl_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"elasticache": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"subnet_ids": [
+							"aws_subnet.elasticache",
+						],
+						"tags": [
+							"var.name",
+							"var.elasticache_subnet_suffix",
+							"var.tags",
+							"var.elasticache_acl_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"intra": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"subnet_ids": [
+							"aws_subnet.intra",
+						],
+						"tags": [
+							"var.name",
+							"var.intra_subnet_suffix",
+							"var.tags",
+							"var.intra_acl_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"outpost": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"subnet_ids": [
+							"aws_subnet.outpost",
+						],
+						"tags": [
+							"var.name",
+							"var.outpost_subnet_suffix",
+							"var.tags",
+							"var.outpost_acl_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"private": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"subnet_ids": [
+							"aws_subnet.private",
+						],
+						"tags": [
+							"var.name",
+							"var.private_subnet_suffix",
+							"var.tags",
+							"var.private_acl_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"public": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"subnet_ids": [
+							"aws_subnet.public",
+						],
+						"tags": [
+							"var.name",
+							"var.public_subnet_suffix",
+							"var.tags",
+							"var.public_acl_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"redshift": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"subnet_ids": [
+							"aws_subnet.redshift",
+						],
+						"tags": [
+							"var.name",
+							"var.redshift_subnet_suffix",
+							"var.tags",
+							"var.redshift_acl_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+			},
+			"aws_network_acl_rule": {
+				"database_inbound": {
+					"config": {
+						"egress": false,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.database_inbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.database_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.database_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.database_inbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.database_inbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.database[0].id",
+							"aws_network_acl.database[0]",
+							"aws_network_acl.database",
+						],
+						"protocol": [
+							"var.database_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.database_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.database_inbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.database_inbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"database_outbound": {
+					"config": {
+						"egress": true,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.database_outbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.database_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.database_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.database_outbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.database_outbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.database[0].id",
+							"aws_network_acl.database[0]",
+							"aws_network_acl.database",
+						],
+						"protocol": [
+							"var.database_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.database_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.database_outbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.database_outbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"elasticache_inbound": {
+					"config": {
+						"egress": false,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.elasticache_inbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.elasticache_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.elasticache_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.elasticache_inbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.elasticache_inbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.elasticache[0].id",
+							"aws_network_acl.elasticache[0]",
+							"aws_network_acl.elasticache",
+						],
+						"protocol": [
+							"var.elasticache_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.elasticache_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.elasticache_inbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.elasticache_inbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"elasticache_outbound": {
+					"config": {
+						"egress": true,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.elasticache_outbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.elasticache_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.elasticache_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.elasticache_outbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.elasticache_outbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.elasticache[0].id",
+							"aws_network_acl.elasticache[0]",
+							"aws_network_acl.elasticache",
+						],
+						"protocol": [
+							"var.elasticache_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.elasticache_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.elasticache_outbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.elasticache_outbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"intra_inbound": {
+					"config": {
+						"egress": false,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.intra_inbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.intra_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.intra_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.intra_inbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.intra_inbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.intra[0].id",
+							"aws_network_acl.intra[0]",
+							"aws_network_acl.intra",
+						],
+						"protocol": [
+							"var.intra_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.intra_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.intra_inbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.intra_inbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"intra_outbound": {
+					"config": {
+						"egress": true,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.intra_outbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.intra_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.intra_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.intra_outbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.intra_outbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.intra[0].id",
+							"aws_network_acl.intra[0]",
+							"aws_network_acl.intra",
+						],
+						"protocol": [
+							"var.intra_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.intra_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.intra_outbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.intra_outbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"outpost_inbound": {
+					"config": {
+						"egress": false,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.outpost_inbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.outpost_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.outpost_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.outpost_inbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.outpost_inbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.outpost[0].id",
+							"aws_network_acl.outpost[0]",
+							"aws_network_acl.outpost",
+						],
+						"protocol": [
+							"var.outpost_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.outpost_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.outpost_inbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.outpost_inbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"outpost_outbound": {
+					"config": {
+						"egress": true,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.outpost_outbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.outpost_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.outpost_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.outpost_outbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.outpost_outbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.outpost[0].id",
+							"aws_network_acl.outpost[0]",
+							"aws_network_acl.outpost",
+						],
+						"protocol": [
+							"var.outpost_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.outpost_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.outpost_outbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.outpost_outbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"private_inbound": {
+					"config": {
+						"egress": false,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.private_inbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.private_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.private_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.private_inbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.private_inbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.private[0].id",
+							"aws_network_acl.private[0]",
+							"aws_network_acl.private",
+						],
+						"protocol": [
+							"var.private_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.private_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.private_inbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.private_inbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"private_outbound": {
+					"config": {
+						"egress": true,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.private_outbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.private_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.private_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.private_outbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.private_outbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.private[0].id",
+							"aws_network_acl.private[0]",
+							"aws_network_acl.private",
+						],
+						"protocol": [
+							"var.private_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.private_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.private_outbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.private_outbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"public_inbound": {
+					"config": {
+						"egress": false,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.public_inbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.public_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.public_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.public_inbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.public_inbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.public[0].id",
+							"aws_network_acl.public[0]",
+							"aws_network_acl.public",
+						],
+						"protocol": [
+							"var.public_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.public_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.public_inbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.public_inbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"public_outbound": {
+					"config": {
+						"egress": true,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.public_outbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.public_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.public_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.public_outbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.public_outbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.public[0].id",
+							"aws_network_acl.public[0]",
+							"aws_network_acl.public",
+						],
+						"protocol": [
+							"var.public_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.public_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.public_outbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.public_outbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"redshift_inbound": {
+					"config": {
+						"egress": false,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.redshift_inbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.redshift_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.redshift_inbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.redshift_inbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.redshift_inbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.redshift[0].id",
+							"aws_network_acl.redshift[0]",
+							"aws_network_acl.redshift",
+						],
+						"protocol": [
+							"var.redshift_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.redshift_inbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.redshift_inbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.redshift_inbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+				"redshift_outbound": {
+					"config": {
+						"egress": true,
+					},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.redshift_outbound_acl_rules",
+							"count.index",
+						],
+						"egress": [],
+						"from_port": [
+							"var.redshift_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_code": [
+							"var.redshift_outbound_acl_rules",
+							"count.index",
+						],
+						"icmp_type": [
+							"var.redshift_outbound_acl_rules",
+							"count.index",
+						],
+						"ipv6_cidr_block": [
+							"var.redshift_outbound_acl_rules",
+							"count.index",
+						],
+						"network_acl_id": [
+							"aws_network_acl.redshift[0].id",
+							"aws_network_acl.redshift[0]",
+							"aws_network_acl.redshift",
+						],
+						"protocol": [
+							"var.redshift_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_action": [
+							"var.redshift_outbound_acl_rules",
+							"count.index",
+						],
+						"rule_number": [
+							"var.redshift_outbound_acl_rules",
+							"count.index",
+						],
+						"to_port": [
+							"var.redshift_outbound_acl_rules",
+							"count.index",
+						],
+					},
+				},
+			},
+			"aws_redshift_subnet_group": {
+				"redshift": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"description": [
+							"var.name",
+						],
+						"name": [
+							"var.redshift_subnet_group_name",
+							"var.name",
+						],
+						"subnet_ids": [
+							"aws_subnet.redshift",
+						],
+						"tags": [
+							"var.redshift_subnet_group_name",
+							"var.name",
+							"var.tags",
+							"var.redshift_subnet_group_tags",
+						],
+					},
+				},
+			},
+			"aws_route": {
+				"database_dns64_nat_gateway": {
+					"config": {
+						"destination_ipv6_cidr_block": "64:ff9b::/96",
+						"timeouts":                    null,
+					},
+					"provisioners": null,
+					"references": {
+						"destination_ipv6_cidr_block": [],
+						"nat_gateway_id": [
+							"aws_nat_gateway.this",
+							"count.index",
+						],
+						"route_table_id": [
+							"aws_route_table.database",
+							"count.index",
+						],
+						"timeouts": [],
+					},
+				},
+				"database_internet_gateway": {
+					"config": {
+						"destination_cidr_block": "0.0.0.0/0",
+						"timeouts":               null,
+					},
+					"provisioners": null,
+					"references": {
+						"destination_cidr_block": [],
+						"gateway_id": [
+							"aws_internet_gateway.this[0].id",
+							"aws_internet_gateway.this[0]",
+							"aws_internet_gateway.this",
+						],
+						"route_table_id": [
+							"aws_route_table.database[0].id",
+							"aws_route_table.database[0]",
+							"aws_route_table.database",
+						],
+						"timeouts": [],
+					},
+				},
+				"database_ipv6_egress": {
+					"config": {
+						"destination_ipv6_cidr_block": "::/0",
+						"timeouts":                    null,
+					},
+					"provisioners": null,
+					"references": {
+						"destination_ipv6_cidr_block": [],
+						"egress_only_gateway_id": [
+							"aws_egress_only_internet_gateway.this[0].id",
+							"aws_egress_only_internet_gateway.this[0]",
+							"aws_egress_only_internet_gateway.this",
+						],
+						"route_table_id": [
+							"aws_route_table.database[0].id",
+							"aws_route_table.database[0]",
+							"aws_route_table.database",
+						],
+						"timeouts": [],
+					},
+				},
+				"database_nat_gateway": {
+					"config": {
+						"destination_cidr_block": "0.0.0.0/0",
+						"timeouts":               null,
+					},
+					"provisioners": null,
+					"references": {
+						"destination_cidr_block": [],
+						"nat_gateway_id": [
+							"aws_nat_gateway.this",
+							"count.index",
+						],
+						"route_table_id": [
+							"aws_route_table.database",
+							"count.index",
+						],
+						"timeouts": [],
+					},
+				},
+				"private_dns64_nat_gateway": {
+					"config": {
+						"destination_ipv6_cidr_block": "64:ff9b::/96",
+						"timeouts":                    null,
+					},
+					"provisioners": null,
+					"references": {
+						"destination_ipv6_cidr_block": [],
+						"nat_gateway_id": [
+							"aws_nat_gateway.this",
+							"count.index",
+						],
+						"route_table_id": [
+							"aws_route_table.private",
+							"count.index",
+						],
+						"timeouts": [],
+					},
+				},
+				"private_ipv6_egress": {
+					"config": {
+						"destination_ipv6_cidr_block": "::/0",
+					},
+					"provisioners": null,
+					"references": {
+						"destination_ipv6_cidr_block": [],
+						"egress_only_gateway_id": [
+							"aws_egress_only_internet_gateway.this",
+						],
+						"route_table_id": [
+							"aws_route_table.private",
+							"count.index",
+						],
+					},
+				},
+				"private_nat_gateway": {
+					"config": {
+						"timeouts": null,
+					},
+					"provisioners": null,
+					"references": {
+						"destination_cidr_block": [
+							"var.nat_gateway_destination_cidr_block",
+						],
+						"nat_gateway_id": [
+							"aws_nat_gateway.this",
+							"count.index",
+						],
+						"route_table_id": [
+							"aws_route_table.private",
+							"count.index",
+						],
+						"timeouts": [],
+					},
+				},
+				"public_internet_gateway": {
+					"config": {
+						"destination_cidr_block": "0.0.0.0/0",
+						"timeouts":               null,
+					},
+					"provisioners": null,
+					"references": {
+						"destination_cidr_block": [],
+						"gateway_id": [
+							"aws_internet_gateway.this[0].id",
+							"aws_internet_gateway.this[0]",
+							"aws_internet_gateway.this",
+						],
+						"route_table_id": [
+							"aws_route_table.public",
+							"count.index",
+						],
+						"timeouts": [],
+					},
+				},
+				"public_internet_gateway_ipv6": {
+					"config": {
+						"destination_ipv6_cidr_block": "::/0",
+					},
+					"provisioners": null,
+					"references": {
+						"destination_ipv6_cidr_block": [],
+						"gateway_id": [
+							"aws_internet_gateway.this[0].id",
+							"aws_internet_gateway.this[0]",
+							"aws_internet_gateway.this",
+						],
+						"route_table_id": [
+							"aws_route_table.public",
+							"count.index",
+						],
+					},
+				},
+			},
+			"aws_route_table": {
+				"database": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"tags": [
+							"var.single_nat_gateway",
+							"var.create_database_internet_gateway_route",
+							"var.name",
+							"var.database_subnet_suffix",
+							"var.name",
+							"var.database_subnet_suffix",
+							"var.azs",
+							"count.index",
+							"var.tags",
+							"var.database_route_table_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"elasticache": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"tags": [
+							"var.name",
+							"var.elasticache_subnet_suffix",
+							"var.tags",
+							"var.elasticache_route_table_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"intra": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"tags": [
+							"var.create_multiple_intra_route_tables",
+							"var.name",
+							"var.intra_subnet_suffix",
+							"var.azs",
+							"count.index",
+							"var.name",
+							"var.intra_subnet_suffix",
+							"var.tags",
+							"var.intra_route_table_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"private": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"tags": [
+							"var.single_nat_gateway",
+							"var.name",
+							"var.private_subnet_suffix",
+							"var.name",
+							"var.private_subnet_suffix",
+							"var.azs",
+							"count.index",
+							"var.tags",
+							"var.private_route_table_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"public": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"tags": [
+							"var.create_multiple_public_route_tables",
+							"var.name",
+							"var.public_subnet_suffix",
+							"var.azs",
+							"count.index",
+							"var.name",
+							"var.public_subnet_suffix",
+							"var.tags",
+							"var.public_route_table_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"redshift": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"tags": [
+							"var.name",
+							"var.redshift_subnet_suffix",
+							"var.tags",
+							"var.redshift_route_table_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+			},
+			"aws_route_table_association": {
+				"database": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"route_table_id": [
+							"aws_route_table.database",
+							"aws_route_table.private",
+							"var.create_database_subnet_route_table",
+							"var.single_nat_gateway",
+							"var.create_database_internet_gateway_route",
+							"count.index",
+							"count.index",
+						],
+						"subnet_id": [
+							"aws_subnet.database",
+							"count.index",
+						],
+					},
+				},
+				"elasticache": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"route_table_id": [
+							"aws_route_table.elasticache",
+							"aws_route_table.private",
+							"var.single_nat_gateway",
+							"var.create_elasticache_subnet_route_table",
+							"count.index",
+						],
+						"subnet_id": [
+							"aws_subnet.elasticache",
+							"count.index",
+						],
+					},
+				},
+				"intra": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"route_table_id": [
+							"aws_route_table.intra",
+							"var.create_multiple_intra_route_tables",
+							"count.index",
+						],
+						"subnet_id": [
+							"aws_subnet.intra",
+							"count.index",
+						],
+					},
+				},
+				"outpost": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"route_table_id": [
+							"aws_route_table.private",
+							"var.single_nat_gateway",
+							"count.index",
+						],
+						"subnet_id": [
+							"aws_subnet.outpost",
+							"count.index",
+						],
+					},
+				},
+				"private": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"route_table_id": [
+							"aws_route_table.private",
+							"var.single_nat_gateway",
+							"count.index",
+						],
+						"subnet_id": [
+							"aws_subnet.private",
+							"count.index",
+						],
+					},
+				},
+				"public": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"route_table_id": [
+							"aws_route_table.public",
+							"var.create_multiple_public_route_tables",
+							"count.index",
+						],
+						"subnet_id": [
+							"aws_subnet.public",
+							"count.index",
+						],
+					},
+				},
+				"redshift": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"route_table_id": [
+							"aws_route_table.redshift",
+							"aws_route_table.private",
+							"var.single_nat_gateway",
+							"var.create_redshift_subnet_route_table",
+							"count.index",
+						],
+						"subnet_id": [
+							"aws_subnet.redshift",
+							"count.index",
+						],
+					},
+				},
+				"redshift_public": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"route_table_id": [
+							"aws_route_table.redshift",
+							"aws_route_table.public",
+							"var.single_nat_gateway",
+							"var.create_redshift_subnet_route_table",
+							"count.index",
+						],
+						"subnet_id": [
+							"aws_subnet.redshift",
+							"count.index",
+						],
+					},
+				},
+			},
+			"aws_subnet": {
+				"database": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"assign_ipv6_address_on_creation": [
+							"var.enable_ipv6",
+							"var.database_subnet_ipv6_native",
+							"var.database_subnet_assign_ipv6_address_on_creation",
+						],
+						"availability_zone": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"availability_zone_id": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"cidr_block": [
+							"var.database_subnet_ipv6_native",
+							"var.database_subnets",
+							"count.index",
+						],
+						"enable_dns64": [
+							"var.enable_ipv6",
+							"var.database_subnet_enable_dns64",
+						],
+						"enable_resource_name_dns_a_record_on_launch": [
+							"var.database_subnet_ipv6_native",
+							"var.database_subnet_enable_resource_name_dns_a_record_on_launch",
+						],
+						"enable_resource_name_dns_aaaa_record_on_launch": [
+							"var.enable_ipv6",
+							"var.database_subnet_enable_resource_name_dns_aaaa_record_on_launch",
+						],
+						"ipv6_cidr_block": [
+							"var.enable_ipv6",
+							"var.database_subnet_ipv6_prefixes",
+							"aws_vpc.this[0].ipv6_cidr_block",
+							"aws_vpc.this[0]",
+							"aws_vpc.this",
+							"var.database_subnet_ipv6_prefixes",
+							"count.index",
+						],
+						"ipv6_native": [
+							"var.enable_ipv6",
+							"var.database_subnet_ipv6_native",
+						],
+						"private_dns_hostname_type_on_launch": [
+							"var.database_subnet_private_dns_hostname_type_on_launch",
+						],
+						"tags": [
+							"var.database_subnet_names",
+							"count.index",
+							"var.name",
+							"var.database_subnet_suffix",
+							"var.azs",
+							"count.index",
+							"var.tags",
+							"var.database_subnet_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"elasticache": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"assign_ipv6_address_on_creation": [
+							"var.enable_ipv6",
+							"var.elasticache_subnet_ipv6_native",
+							"var.elasticache_subnet_assign_ipv6_address_on_creation",
+						],
+						"availability_zone": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"availability_zone_id": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"cidr_block": [
+							"var.elasticache_subnet_ipv6_native",
+							"var.elasticache_subnets",
+							"count.index",
+						],
+						"enable_dns64": [
+							"var.enable_ipv6",
+							"var.elasticache_subnet_enable_dns64",
+						],
+						"enable_resource_name_dns_a_record_on_launch": [
+							"var.elasticache_subnet_ipv6_native",
+							"var.elasticache_subnet_enable_resource_name_dns_a_record_on_launch",
+						],
+						"enable_resource_name_dns_aaaa_record_on_launch": [
+							"var.enable_ipv6",
+							"var.elasticache_subnet_enable_resource_name_dns_aaaa_record_on_launch",
+						],
+						"ipv6_cidr_block": [
+							"var.enable_ipv6",
+							"var.elasticache_subnet_ipv6_prefixes",
+							"aws_vpc.this[0].ipv6_cidr_block",
+							"aws_vpc.this[0]",
+							"aws_vpc.this",
+							"var.elasticache_subnet_ipv6_prefixes",
+							"count.index",
+						],
+						"ipv6_native": [
+							"var.enable_ipv6",
+							"var.elasticache_subnet_ipv6_native",
+						],
+						"private_dns_hostname_type_on_launch": [
+							"var.elasticache_subnet_private_dns_hostname_type_on_launch",
+						],
+						"tags": [
+							"var.elasticache_subnet_names",
+							"count.index",
+							"var.name",
+							"var.elasticache_subnet_suffix",
+							"var.azs",
+							"count.index",
+							"var.tags",
+							"var.elasticache_subnet_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"intra": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"assign_ipv6_address_on_creation": [
+							"var.enable_ipv6",
+							"var.intra_subnet_ipv6_native",
+							"var.intra_subnet_assign_ipv6_address_on_creation",
+						],
+						"availability_zone": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"availability_zone_id": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"cidr_block": [
+							"var.intra_subnet_ipv6_native",
+							"var.intra_subnets",
+							"count.index",
+						],
+						"enable_dns64": [
+							"var.enable_ipv6",
+							"var.intra_subnet_enable_dns64",
+						],
+						"enable_resource_name_dns_a_record_on_launch": [
+							"var.intra_subnet_ipv6_native",
+							"var.intra_subnet_enable_resource_name_dns_a_record_on_launch",
+						],
+						"enable_resource_name_dns_aaaa_record_on_launch": [
+							"var.enable_ipv6",
+							"var.intra_subnet_enable_resource_name_dns_aaaa_record_on_launch",
+						],
+						"ipv6_cidr_block": [
+							"var.enable_ipv6",
+							"var.intra_subnet_ipv6_prefixes",
+							"aws_vpc.this[0].ipv6_cidr_block",
+							"aws_vpc.this[0]",
+							"aws_vpc.this",
+							"var.intra_subnet_ipv6_prefixes",
+							"count.index",
+						],
+						"ipv6_native": [
+							"var.enable_ipv6",
+							"var.intra_subnet_ipv6_native",
+						],
+						"private_dns_hostname_type_on_launch": [
+							"var.intra_subnet_private_dns_hostname_type_on_launch",
+						],
+						"tags": [
+							"var.intra_subnet_names",
+							"count.index",
+							"var.name",
+							"var.intra_subnet_suffix",
+							"var.azs",
+							"count.index",
+							"var.tags",
+							"var.intra_subnet_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"outpost": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"assign_ipv6_address_on_creation": [
+							"var.enable_ipv6",
+							"var.outpost_subnet_ipv6_native",
+							"var.outpost_subnet_assign_ipv6_address_on_creation",
+						],
+						"availability_zone": [
+							"var.outpost_az",
+						],
+						"cidr_block": [
+							"var.outpost_subnet_ipv6_native",
+							"var.outpost_subnets",
+							"count.index",
+						],
+						"customer_owned_ipv4_pool": [
+							"var.customer_owned_ipv4_pool",
+						],
+						"enable_dns64": [
+							"var.enable_ipv6",
+							"var.outpost_subnet_enable_dns64",
+						],
+						"enable_resource_name_dns_a_record_on_launch": [
+							"var.outpost_subnet_ipv6_native",
+							"var.outpost_subnet_enable_resource_name_dns_a_record_on_launch",
+						],
+						"enable_resource_name_dns_aaaa_record_on_launch": [
+							"var.enable_ipv6",
+							"var.outpost_subnet_enable_resource_name_dns_aaaa_record_on_launch",
+						],
+						"ipv6_cidr_block": [
+							"var.enable_ipv6",
+							"var.outpost_subnet_ipv6_prefixes",
+							"aws_vpc.this[0].ipv6_cidr_block",
+							"aws_vpc.this[0]",
+							"aws_vpc.this",
+							"var.outpost_subnet_ipv6_prefixes",
+							"count.index",
+						],
+						"ipv6_native": [
+							"var.enable_ipv6",
+							"var.outpost_subnet_ipv6_native",
+						],
+						"map_customer_owned_ip_on_launch": [
+							"var.map_customer_owned_ip_on_launch",
+						],
+						"outpost_arn": [
+							"var.outpost_arn",
+						],
+						"private_dns_hostname_type_on_launch": [
+							"var.outpost_subnet_private_dns_hostname_type_on_launch",
+						],
+						"tags": [
+							"var.outpost_subnet_names",
+							"count.index",
+							"var.name",
+							"var.outpost_subnet_suffix",
+							"var.outpost_az",
+							"var.tags",
+							"var.outpost_subnet_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"private": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"assign_ipv6_address_on_creation": [
+							"var.enable_ipv6",
+							"var.private_subnet_ipv6_native",
+							"var.private_subnet_assign_ipv6_address_on_creation",
+						],
+						"availability_zone": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"availability_zone_id": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"cidr_block": [
+							"var.private_subnet_ipv6_native",
+							"var.private_subnets",
+							"count.index",
+						],
+						"enable_dns64": [
+							"var.enable_ipv6",
+							"var.private_subnet_enable_dns64",
+						],
+						"enable_resource_name_dns_a_record_on_launch": [
+							"var.private_subnet_ipv6_native",
+							"var.private_subnet_enable_resource_name_dns_a_record_on_launch",
+						],
+						"enable_resource_name_dns_aaaa_record_on_launch": [
+							"var.enable_ipv6",
+							"var.private_subnet_enable_resource_name_dns_aaaa_record_on_launch",
+						],
+						"ipv6_cidr_block": [
+							"var.enable_ipv6",
+							"var.private_subnet_ipv6_prefixes",
+							"aws_vpc.this[0].ipv6_cidr_block",
+							"aws_vpc.this[0]",
+							"aws_vpc.this",
+							"var.private_subnet_ipv6_prefixes",
+							"count.index",
+						],
+						"ipv6_native": [
+							"var.enable_ipv6",
+							"var.private_subnet_ipv6_native",
+						],
+						"private_dns_hostname_type_on_launch": [
+							"var.private_subnet_private_dns_hostname_type_on_launch",
+						],
+						"tags": [
+							"var.private_subnet_names",
+							"count.index",
+							"var.name",
+							"var.private_subnet_suffix",
+							"var.azs",
+							"count.index",
+							"var.tags",
+							"var.private_subnet_tags",
+							"var.private_subnet_tags_per_az",
+							"var.azs",
+							"count.index",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"public": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"assign_ipv6_address_on_creation": [
+							"var.enable_ipv6",
+							"var.public_subnet_ipv6_native",
+							"var.public_subnet_assign_ipv6_address_on_creation",
+						],
+						"availability_zone": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"availability_zone_id": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"cidr_block": [
+							"var.public_subnet_ipv6_native",
+							"var.public_subnets",
+							"count.index",
+						],
+						"enable_dns64": [
+							"var.enable_ipv6",
+							"var.public_subnet_enable_dns64",
+						],
+						"enable_resource_name_dns_a_record_on_launch": [
+							"var.public_subnet_ipv6_native",
+							"var.public_subnet_enable_resource_name_dns_a_record_on_launch",
+						],
+						"enable_resource_name_dns_aaaa_record_on_launch": [
+							"var.enable_ipv6",
+							"var.public_subnet_enable_resource_name_dns_aaaa_record_on_launch",
+						],
+						"ipv6_cidr_block": [
+							"var.enable_ipv6",
+							"var.public_subnet_ipv6_prefixes",
+							"aws_vpc.this[0].ipv6_cidr_block",
+							"aws_vpc.this[0]",
+							"aws_vpc.this",
+							"var.public_subnet_ipv6_prefixes",
+							"count.index",
+						],
+						"ipv6_native": [
+							"var.enable_ipv6",
+							"var.public_subnet_ipv6_native",
+						],
+						"map_public_ip_on_launch": [
+							"var.map_public_ip_on_launch",
+						],
+						"private_dns_hostname_type_on_launch": [
+							"var.public_subnet_private_dns_hostname_type_on_launch",
+						],
+						"tags": [
+							"var.public_subnet_names",
+							"count.index",
+							"var.name",
+							"var.public_subnet_suffix",
+							"var.azs",
+							"count.index",
+							"var.tags",
+							"var.public_subnet_tags",
+							"var.public_subnet_tags_per_az",
+							"var.azs",
+							"count.index",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+				"redshift": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"assign_ipv6_address_on_creation": [
+							"var.enable_ipv6",
+							"var.redshift_subnet_ipv6_native",
+							"var.redshift_subnet_assign_ipv6_address_on_creation",
+						],
+						"availability_zone": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"availability_zone_id": [
+							"var.azs",
+							"count.index",
+							"var.azs",
+							"count.index",
+						],
+						"cidr_block": [
+							"var.redshift_subnet_ipv6_native",
+							"var.redshift_subnets",
+							"count.index",
+						],
+						"enable_dns64": [
+							"var.enable_ipv6",
+							"var.redshift_subnet_enable_dns64",
+						],
+						"enable_resource_name_dns_a_record_on_launch": [
+							"var.redshift_subnet_ipv6_native",
+							"var.redshift_subnet_enable_resource_name_dns_a_record_on_launch",
+						],
+						"enable_resource_name_dns_aaaa_record_on_launch": [
+							"var.enable_ipv6",
+							"var.redshift_subnet_enable_resource_name_dns_aaaa_record_on_launch",
+						],
+						"ipv6_cidr_block": [
+							"var.enable_ipv6",
+							"var.redshift_subnet_ipv6_prefixes",
+							"aws_vpc.this[0].ipv6_cidr_block",
+							"aws_vpc.this[0]",
+							"aws_vpc.this",
+							"var.redshift_subnet_ipv6_prefixes",
+							"count.index",
+						],
+						"ipv6_native": [
+							"var.enable_ipv6",
+							"var.redshift_subnet_ipv6_native",
+						],
+						"private_dns_hostname_type_on_launch": [
+							"var.redshift_subnet_private_dns_hostname_type_on_launch",
+						],
+						"tags": [
+							"var.redshift_subnet_names",
+							"count.index",
+							"var.name",
+							"var.redshift_subnet_suffix",
+							"var.azs",
+							"count.index",
+							"var.tags",
+							"var.redshift_subnet_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+			},
+			"aws_vpc": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"assign_generated_ipv6_cidr_block": [
+							"var.enable_ipv6",
+							"var.use_ipam_pool",
+						],
+						"cidr_block": [
+							"var.use_ipam_pool",
+							"var.cidr",
+						],
+						"enable_dns_hostnames": [
+							"var.enable_dns_hostnames",
+						],
+						"enable_dns_support": [
+							"var.enable_dns_support",
+						],
+						"enable_network_address_usage_metrics": [
+							"var.enable_network_address_usage_metrics",
+						],
+						"instance_tenancy": [
+							"var.instance_tenancy",
+						],
+						"ipv4_ipam_pool_id": [
+							"var.ipv4_ipam_pool_id",
+						],
+						"ipv4_netmask_length": [
+							"var.ipv4_netmask_length",
+						],
+						"ipv6_cidr_block": [
+							"var.ipv6_cidr",
+						],
+						"ipv6_cidr_block_network_border_group": [
+							"var.ipv6_cidr_block_network_border_group",
+						],
+						"ipv6_ipam_pool_id": [
+							"var.ipv6_ipam_pool_id",
+						],
+						"ipv6_netmask_length": [
+							"var.ipv6_netmask_length",
+						],
+						"tags": [
+							"var.name",
+							"var.tags",
+							"var.vpc_tags",
+						],
+					},
+				},
+			},
+			"aws_vpc_block_public_access_exclusion": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"internet_gateway_exclusion_mode": [
+							"each.value.internet_gateway_exclusion_mode",
+							"each.value",
+						],
+						"subnet_id": [
+							"each.value.exclude_subnet",
+							"each.value",
+							"aws_subnet.private",
+							"aws_subnet.public",
+							"aws_subnet.database",
+							"aws_subnet.redshift",
+							"aws_subnet.elasticache",
+							"aws_subnet.intra",
+							"aws_subnet.outpost",
+							"each.value.subnet_type",
+							"each.value",
+							"each.value.subnet_index",
+							"each.value",
+						],
+						"tags": [
+							"var.tags",
+							"each.value.tags",
+							"each.value",
+						],
+						"vpc_id": [
+							"each.value.exclude_vpc",
+							"each.value",
+							"local.vpc_id",
+						],
+					},
+				},
+			},
+			"aws_vpc_block_public_access_options": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"internet_gateway_block_mode": [
+							"var.vpc_block_public_access_options[\"internet_gateway_block_mode\"]",
+							"var.vpc_block_public_access_options",
+						],
+					},
+				},
+			},
+			"aws_vpc_dhcp_options": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"domain_name": [
+							"var.dhcp_options_domain_name",
+						],
+						"domain_name_servers": [
+							"var.dhcp_options_domain_name_servers",
+						],
+						"ipv6_address_preferred_lease_time": [
+							"var.dhcp_options_ipv6_address_preferred_lease_time",
+						],
+						"netbios_name_servers": [
+							"var.dhcp_options_netbios_name_servers",
+						],
+						"netbios_node_type": [
+							"var.dhcp_options_netbios_node_type",
+						],
+						"ntp_servers": [
+							"var.dhcp_options_ntp_servers",
+						],
+						"tags": [
+							"var.name",
+							"var.tags",
+							"var.dhcp_options_tags",
+						],
+					},
+				},
+			},
+			"aws_vpc_dhcp_options_association": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"dhcp_options_id": [
+							"aws_vpc_dhcp_options.this[0].id",
+							"aws_vpc_dhcp_options.this[0]",
+							"aws_vpc_dhcp_options.this",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+			},
+			"aws_vpc_ipv4_cidr_block_association": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"cidr_block": [
+							"var.secondary_cidr_blocks",
+							"count.index",
+						],
+						"vpc_id": [
+							"aws_vpc.this[0].id",
+							"aws_vpc.this[0]",
+							"aws_vpc.this",
+						],
+					},
+				},
+			},
+			"aws_vpn_gateway": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"amazon_side_asn": [
+							"var.amazon_side_asn",
+						],
+						"availability_zone": [
+							"var.vpn_gateway_az",
+						],
+						"tags": [
+							"var.name",
+							"var.tags",
+							"var.vpn_gateway_tags",
+						],
+						"vpc_id": [
+							"local.vpc_id",
+						],
+					},
+				},
+			},
+			"aws_vpn_gateway_attachment": {
+				"this": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"vpc_id": [
+							"local.vpc_id",
+						],
+						"vpn_gateway_id": [
+							"var.vpn_gateway_id",
+						],
+					},
+				},
+			},
+			"aws_vpn_gateway_route_propagation": {
+				"intra": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"route_table_id": [
+							"aws_route_table.intra",
+							"count.index",
+						],
+						"vpn_gateway_id": [
+							"aws_vpn_gateway.this",
+							"aws_vpn_gateway_attachment.this",
+							"count.index",
+						],
+					},
+				},
+				"private": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"route_table_id": [
+							"aws_route_table.private",
+							"count.index",
+						],
+						"vpn_gateway_id": [
+							"aws_vpn_gateway.this",
+							"aws_vpn_gateway_attachment.this",
+							"count.index",
+						],
+					},
+				},
+				"public": {
+					"config":       {},
+					"provisioners": null,
+					"references": {
+						"route_table_id": [
+							"aws_route_table.public",
+							"count.index",
+						],
+						"vpn_gateway_id": [
+							"aws_vpn_gateway.this",
+							"aws_vpn_gateway_attachment.this",
+							"count.index",
+						],
+					},
+				},
+			},
+		},
+		"variables": {
+			"amazon_side_asn": {
+				"default":     "64512",
+				"description": "The Autonomous System Number (ASN) for the Amazon side of the gateway. By default the virtual private gateway is created with the current default Amazon ASN",
+			},
+			"azs": {
+				"default":     [],
+				"description": "A list of availability zones names or ids in the region",
+			},
+			"cidr": {
+				"default":     "10.0.0.0/16",
+				"description": "(Optional) The IPv4 CIDR block for the VPC. CIDR can be explicitly set or it can be derived from IPAM using `ipv4_netmask_length` & `ipv4_ipam_pool_id`",
+			},
+			"create_database_internet_gateway_route": {
+				"default":     false,
+				"description": "Controls if an internet gateway route for public database access should be created",
+			},
+			"create_database_nat_gateway_route": {
+				"default":     false,
+				"description": "Controls if a nat gateway route should be created to give internet access to the database subnets",
+			},
+			"create_database_subnet_group": {
+				"default":     true,
+				"description": "Controls if database subnet group should be created (n.b. database_subnets must also be set)",
+			},
+			"create_database_subnet_route_table": {
+				"default":     false,
+				"description": "Controls if separate route table for database should be created",
+			},
+			"create_egress_only_igw": {
+				"default":     true,
+				"description": "Controls if an Egress Only Internet Gateway is created and its related routes",
+			},
+			"create_elasticache_subnet_group": {
+				"default":     true,
+				"description": "Controls if elasticache subnet group should be created",
+			},
+			"create_elasticache_subnet_route_table": {
+				"default":     false,
+				"description": "Controls if separate route table for elasticache should be created",
+			},
+			"create_flow_log_cloudwatch_iam_role": {
+				"default":     false,
+				"description": "Whether to create IAM role for VPC Flow Logs",
+			},
+			"create_flow_log_cloudwatch_log_group": {
+				"default":     false,
+				"description": "Whether to create CloudWatch log group for VPC Flow Logs",
+			},
+			"create_igw": {
+				"default":     true,
+				"description": "Controls if an Internet Gateway is created for public subnets and the related routes that connect them",
+			},
+			"create_multiple_intra_route_tables": {
+				"default":     false,
+				"description": "Indicates whether to create a separate route table for each intra subnet. Default: `false`",
+			},
+			"create_multiple_public_route_tables": {
+				"default":     false,
+				"description": "Indicates whether to create a separate route table for each public subnet. Default: `false`",
+			},
+			"create_private_nat_gateway_route": {
+				"default":     true,
+				"description": "Controls if a nat gateway route should be created to give internet access to the private subnets",
+			},
+			"create_redshift_subnet_group": {
+				"default":     true,
+				"description": "Controls if redshift subnet group should be created",
+			},
+			"create_redshift_subnet_route_table": {
+				"default":     false,
+				"description": "Controls if separate route table for redshift should be created",
+			},
+			"create_vpc": {
+				"default":     true,
+				"description": "Controls if VPC should be created (it affects almost all resources)",
+			},
+			"customer_gateway_tags": {
+				"default":     {},
+				"description": "Additional tags for the Customer Gateway",
+			},
+			"customer_gateways": {
+				"default":     {},
+				"description": "Maps of Customer Gateway's attributes (BGP ASN and Gateway's Internet-routable external IP address)",
+			},
+			"customer_owned_ipv4_pool": {
+				"default":     null,
+				"description": "The customer owned IPv4 address pool. Typically used with the `map_customer_owned_ip_on_launch` argument. The `outpost_arn` argument must be specified when configured",
+			},
+			"database_acl_tags": {
+				"default":     {},
+				"description": "Additional tags for the database subnets network ACL",
+			},
+			"database_dedicated_network_acl": {
+				"default":     false,
+				"description": "Whether to use dedicated network ACL (not default) and custom rules for database subnets",
+			},
+			"database_inbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Database subnets inbound network ACL rules",
+			},
+			"database_outbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Database subnets outbound network ACL rules",
+			},
+			"database_route_table_tags": {
+				"default":     {},
+				"description": "Additional tags for the database route tables",
+			},
+			"database_subnet_assign_ipv6_address_on_creation": {
+				"default":     false,
+				"description": "Specify true to indicate that network interfaces created in the specified subnet should be assigned an IPv6 address. Default is `false`",
+			},
+			"database_subnet_enable_dns64": {
+				"default":     true,
+				"description": "Indicates whether DNS queries made to the Amazon-provided DNS Resolver in this subnet should return synthetic IPv6 addresses for IPv4-only destinations. Default: `true`",
+			},
+			"database_subnet_enable_resource_name_dns_a_record_on_launch": {
+				"default":     false,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS A records. Default: `false`",
+			},
+			"database_subnet_enable_resource_name_dns_aaaa_record_on_launch": {
+				"default":     true,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS AAAA records. Default: `true`",
+			},
+			"database_subnet_group_name": {
+				"default":     null,
+				"description": "Name of database subnet group",
+			},
+			"database_subnet_group_tags": {
+				"default":     {},
+				"description": "Additional tags for the database subnet group",
+			},
+			"database_subnet_ipv6_native": {
+				"default":     false,
+				"description": "Indicates whether to create an IPv6-only subnet. Default: `false`",
+			},
+			"database_subnet_ipv6_prefixes": {
+				"default":     [],
+				"description": "Assigns IPv6 database subnet id based on the Amazon provided /56 prefix base 10 integer (0-256). Must be of equal length to the corresponding IPv4 subnet list",
+			},
+			"database_subnet_names": {
+				"default":     [],
+				"description": "Explicit values to use in the Name tag on database subnets. If empty, Name tags are generated",
+			},
+			"database_subnet_private_dns_hostname_type_on_launch": {
+				"default":     null,
+				"description": "The type of hostnames to assign to instances in the subnet at launch. For IPv6-only subnets, an instance DNS name must be based on the instance ID. For dual-stack and IPv4-only subnets, you can specify whether DNS names use the instance IPv4 address or the instance ID. Valid values: `ip-name`, `resource-name`",
+			},
+			"database_subnet_suffix": {
+				"default":     "db",
+				"description": "Suffix to append to database subnets name",
+			},
+			"database_subnet_tags": {
+				"default":     {},
+				"description": "Additional tags for the database subnets",
+			},
+			"database_subnets": {
+				"default":     [],
+				"description": "A list of database subnets inside the VPC",
+			},
+			"default_network_acl_egress": {
+				"default": [
+					{
+						"action":     "allow",
+						"cidr_block": "0.0.0.0/0",
+						"from_port":  "0",
+						"protocol":   "-1",
+						"rule_no":    "100",
+						"to_port":    "0",
+					},
+					{
+						"action":          "allow",
+						"from_port":       "0",
+						"ipv6_cidr_block": "::/0",
+						"protocol":        "-1",
+						"rule_no":         "101",
+						"to_port":         "0",
+					},
+				],
+				"description": "List of maps of egress rules to set on the Default Network ACL",
+			},
+			"default_network_acl_ingress": {
+				"default": [
+					{
+						"action":     "allow",
+						"cidr_block": "0.0.0.0/0",
+						"from_port":  "0",
+						"protocol":   "-1",
+						"rule_no":    "100",
+						"to_port":    "0",
+					},
+					{
+						"action":          "allow",
+						"from_port":       "0",
+						"ipv6_cidr_block": "::/0",
+						"protocol":        "-1",
+						"rule_no":         "101",
+						"to_port":         "0",
+					},
+				],
+				"description": "List of maps of ingress rules to set on the Default Network ACL",
+			},
+			"default_network_acl_name": {
+				"default":     null,
+				"description": "Name to be used on the Default Network ACL",
+			},
+			"default_network_acl_tags": {
+				"default":     {},
+				"description": "Additional tags for the Default Network ACL",
+			},
+			"default_route_table_name": {
+				"default":     null,
+				"description": "Name to be used on the default route table",
+			},
+			"default_route_table_propagating_vgws": {
+				"default":     [],
+				"description": "List of virtual gateways for propagation",
+			},
+			"default_route_table_routes": {
+				"default":     [],
+				"description": "Configuration block of routes. See https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/default_route_table#route",
+			},
+			"default_route_table_tags": {
+				"default":     {},
+				"description": "Additional tags for the default route table",
+			},
+			"default_security_group_egress": {
+				"default":     [],
+				"description": "List of maps of egress rules to set on the default security group",
+			},
+			"default_security_group_ingress": {
+				"default":     [],
+				"description": "List of maps of ingress rules to set on the default security group",
+			},
+			"default_security_group_name": {
+				"default":     null,
+				"description": "Name to be used on the default security group",
+			},
+			"default_security_group_tags": {
+				"default":     {},
+				"description": "Additional tags for the default security group",
+			},
+			"default_vpc_enable_dns_hostnames": {
+				"default":     true,
+				"description": "Should be true to enable DNS hostnames in the Default VPC",
+			},
+			"default_vpc_enable_dns_support": {
+				"default":     true,
+				"description": "Should be true to enable DNS support in the Default VPC",
+			},
+			"default_vpc_name": {
+				"default":     null,
+				"description": "Name to be used on the Default VPC",
+			},
+			"default_vpc_tags": {
+				"default":     {},
+				"description": "Additional tags for the Default VPC",
+			},
+			"dhcp_options_domain_name": {
+				"default":     "",
+				"description": "Specifies DNS name for DHCP options set (requires enable_dhcp_options set to true)",
+			},
+			"dhcp_options_domain_name_servers": {
+				"default": [
+					"AmazonProvidedDNS",
+				],
+				"description": "Specify a list of DNS server addresses for DHCP options set, default to AWS provided (requires enable_dhcp_options set to true)",
+			},
+			"dhcp_options_ipv6_address_preferred_lease_time": {
+				"default":     null,
+				"description": "How frequently, in seconds, a running instance with an IPv6 assigned to it goes through DHCPv6 lease renewal (requires enable_dhcp_options set to true)",
+			},
+			"dhcp_options_netbios_name_servers": {
+				"default":     [],
+				"description": "Specify a list of netbios servers for DHCP options set (requires enable_dhcp_options set to true)",
+			},
+			"dhcp_options_netbios_node_type": {
+				"default":     "",
+				"description": "Specify netbios node_type for DHCP options set (requires enable_dhcp_options set to true)",
+			},
+			"dhcp_options_ntp_servers": {
+				"default":     [],
+				"description": "Specify a list of NTP servers for DHCP options set (requires enable_dhcp_options set to true)",
+			},
+			"dhcp_options_tags": {
+				"default":     {},
+				"description": "Additional tags for the DHCP option set (requires enable_dhcp_options set to true)",
+			},
+			"elasticache_acl_tags": {
+				"default":     {},
+				"description": "Additional tags for the elasticache subnets network ACL",
+			},
+			"elasticache_dedicated_network_acl": {
+				"default":     false,
+				"description": "Whether to use dedicated network ACL (not default) and custom rules for elasticache subnets",
+			},
+			"elasticache_inbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Elasticache subnets inbound network ACL rules",
+			},
+			"elasticache_outbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Elasticache subnets outbound network ACL rules",
+			},
+			"elasticache_route_table_tags": {
+				"default":     {},
+				"description": "Additional tags for the elasticache route tables",
+			},
+			"elasticache_subnet_assign_ipv6_address_on_creation": {
+				"default":     false,
+				"description": "Specify true to indicate that network interfaces created in the specified subnet should be assigned an IPv6 address. Default is `false`",
+			},
+			"elasticache_subnet_enable_dns64": {
+				"default":     true,
+				"description": "Indicates whether DNS queries made to the Amazon-provided DNS Resolver in this subnet should return synthetic IPv6 addresses for IPv4-only destinations. Default: `true`",
+			},
+			"elasticache_subnet_enable_resource_name_dns_a_record_on_launch": {
+				"default":     false,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS A records. Default: `false`",
+			},
+			"elasticache_subnet_enable_resource_name_dns_aaaa_record_on_launch": {
+				"default":     true,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS AAAA records. Default: `true`",
+			},
+			"elasticache_subnet_group_name": {
+				"default":     null,
+				"description": "Name of elasticache subnet group",
+			},
+			"elasticache_subnet_group_tags": {
+				"default":     {},
+				"description": "Additional tags for the elasticache subnet group",
+			},
+			"elasticache_subnet_ipv6_native": {
+				"default":     false,
+				"description": "Indicates whether to create an IPv6-only subnet. Default: `false`",
+			},
+			"elasticache_subnet_ipv6_prefixes": {
+				"default":     [],
+				"description": "Assigns IPv6 elasticache subnet id based on the Amazon provided /56 prefix base 10 integer (0-256). Must be of equal length to the corresponding IPv4 subnet list",
+			},
+			"elasticache_subnet_names": {
+				"default":     [],
+				"description": "Explicit values to use in the Name tag on elasticache subnets. If empty, Name tags are generated",
+			},
+			"elasticache_subnet_private_dns_hostname_type_on_launch": {
+				"default":     null,
+				"description": "The type of hostnames to assign to instances in the subnet at launch. For IPv6-only subnets, an instance DNS name must be based on the instance ID. For dual-stack and IPv4-only subnets, you can specify whether DNS names use the instance IPv4 address or the instance ID. Valid values: `ip-name`, `resource-name`",
+			},
+			"elasticache_subnet_suffix": {
+				"default":     "elasticache",
+				"description": "Suffix to append to elasticache subnets name",
+			},
+			"elasticache_subnet_tags": {
+				"default":     {},
+				"description": "Additional tags for the elasticache subnets",
+			},
+			"elasticache_subnets": {
+				"default":     [],
+				"description": "A list of elasticache subnets inside the VPC",
+			},
+			"enable_dhcp_options": {
+				"default":     false,
+				"description": "Should be true if you want to specify a DHCP options set with a custom domain name, DNS servers, NTP servers, netbios servers, and/or netbios server type",
+			},
+			"enable_dns_hostnames": {
+				"default":     true,
+				"description": "Should be true to enable DNS hostnames in the VPC",
+			},
+			"enable_dns_support": {
+				"default":     true,
+				"description": "Should be true to enable DNS support in the VPC",
+			},
+			"enable_flow_log": {
+				"default":     false,
+				"description": "Whether or not to enable VPC Flow Logs",
+			},
+			"enable_ipv6": {
+				"default":     false,
+				"description": "Requests an Amazon-provided IPv6 CIDR block with a /56 prefix length for the VPC. You cannot specify the range of IP addresses, or the size of the CIDR block",
+			},
+			"enable_nat_gateway": {
+				"default":     false,
+				"description": "Should be true if you want to provision NAT Gateways for each of your private networks",
+			},
+			"enable_network_address_usage_metrics": {
+				"default":     null,
+				"description": "Determines whether network address usage metrics are enabled for the VPC",
+			},
+			"enable_public_redshift": {
+				"default":     false,
+				"description": "Controls if redshift should have public routing table",
+			},
+			"enable_vpn_gateway": {
+				"default":     false,
+				"description": "Should be true if you want to create a new VPN Gateway resource and attach it to the VPC",
+			},
+			"external_nat_ip_ids": {
+				"default":     [],
+				"description": "List of EIP IDs to be assigned to the NAT Gateways (used in combination with reuse_nat_ips)",
+			},
+			"external_nat_ips": {
+				"default":     [],
+				"description": "List of EIPs to be used for `nat_public_ips` output (used in combination with reuse_nat_ips and external_nat_ip_ids)",
+			},
+			"flow_log_cloudwatch_iam_role_arn": {
+				"default":     "",
+				"description": "The ARN for the IAM role that's used to post flow logs to a CloudWatch Logs log group. When flow_log_destination_arn is set to ARN of Cloudwatch Logs, this argument needs to be provided",
+			},
+			"flow_log_cloudwatch_iam_role_conditions": {
+				"default":     [],
+				"description": "Additional conditions of the CloudWatch role assumption policy",
+			},
+			"flow_log_cloudwatch_log_group_class": {
+				"default":     null,
+				"description": "Specified the log class of the log group. Possible values are: STANDARD or INFREQUENT_ACCESS",
+			},
+			"flow_log_cloudwatch_log_group_kms_key_id": {
+				"default":     null,
+				"description": "The ARN of the KMS Key to use when encrypting log data for VPC flow logs",
+			},
+			"flow_log_cloudwatch_log_group_name_prefix": {
+				"default":     "/aws/vpc-flow-log/",
+				"description": "Specifies the name prefix of CloudWatch Log Group for VPC flow logs",
+			},
+			"flow_log_cloudwatch_log_group_name_suffix": {
+				"default":     "",
+				"description": "Specifies the name suffix of CloudWatch Log Group for VPC flow logs",
+			},
+			"flow_log_cloudwatch_log_group_retention_in_days": {
+				"default":     null,
+				"description": "Specifies the number of days you want to retain log events in the specified log group for VPC flow logs",
+			},
+			"flow_log_cloudwatch_log_group_skip_destroy": {
+				"default":     false,
+				"description": " Set to true if you do not wish the log group (and any logs it may contain) to be deleted at destroy time, and instead just remove the log group from the Terraform state",
+			},
+			"flow_log_deliver_cross_account_role": {
+				"default":     null,
+				"description": "(Optional) ARN of the IAM role that allows Amazon EC2 to publish flow logs across accounts.",
+			},
+			"flow_log_destination_arn": {
+				"default":     "",
+				"description": "The ARN of the CloudWatch log group or S3 bucket where VPC Flow Logs will be pushed. If this ARN is a S3 bucket the appropriate permissions need to be set on that bucket's policy. When create_flow_log_cloudwatch_log_group is set to false this argument must be provided",
+			},
+			"flow_log_destination_type": {
+				"default":     "cloud-watch-logs",
+				"description": "Type of flow log destination. Can be s3, kinesis-data-firehose or cloud-watch-logs",
+			},
+			"flow_log_file_format": {
+				"default":     null,
+				"description": "(Optional) The format for the flow log. Valid values: `plain-text`, `parquet`",
+			},
+			"flow_log_hive_compatible_partitions": {
+				"default":     false,
+				"description": "(Optional) Indicates whether to use Hive-compatible prefixes for flow logs stored in Amazon S3",
+			},
+			"flow_log_log_format": {
+				"default":     null,
+				"description": "The fields to include in the flow log record, in the order in which they should appear",
+			},
+			"flow_log_max_aggregation_interval": {
+				"default":     600,
+				"description": "The maximum interval of time during which a flow of packets is captured and aggregated into a flow log record. Valid Values: `60` seconds or `600` seconds",
+			},
+			"flow_log_per_hour_partition": {
+				"default":     false,
+				"description": "(Optional) Indicates whether to partition the flow log per hour. This reduces the cost and response time for queries",
+			},
+			"flow_log_traffic_type": {
+				"default":     "ALL",
+				"description": "The type of traffic to capture. Valid values: ACCEPT, REJECT, ALL",
+			},
+			"igw_tags": {
+				"default":     {},
+				"description": "Additional tags for the internet gateway",
+			},
+			"instance_tenancy": {
+				"default":     "default",
+				"description": "A tenancy option for instances launched into the VPC",
+			},
+			"intra_acl_tags": {
+				"default":     {},
+				"description": "Additional tags for the intra subnets network ACL",
+			},
+			"intra_dedicated_network_acl": {
+				"default":     false,
+				"description": "Whether to use dedicated network ACL (not default) and custom rules for intra subnets",
+			},
+			"intra_inbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Intra subnets inbound network ACLs",
+			},
+			"intra_outbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Intra subnets outbound network ACLs",
+			},
+			"intra_route_table_tags": {
+				"default":     {},
+				"description": "Additional tags for the intra route tables",
+			},
+			"intra_subnet_assign_ipv6_address_on_creation": {
+				"default":     false,
+				"description": "Specify true to indicate that network interfaces created in the specified subnet should be assigned an IPv6 address. Default is `false`",
+			},
+			"intra_subnet_enable_dns64": {
+				"default":     true,
+				"description": "Indicates whether DNS queries made to the Amazon-provided DNS Resolver in this subnet should return synthetic IPv6 addresses for IPv4-only destinations. Default: `true`",
+			},
+			"intra_subnet_enable_resource_name_dns_a_record_on_launch": {
+				"default":     false,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS A records. Default: `false`",
+			},
+			"intra_subnet_enable_resource_name_dns_aaaa_record_on_launch": {
+				"default":     true,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS AAAA records. Default: `true`",
+			},
+			"intra_subnet_ipv6_native": {
+				"default":     false,
+				"description": "Indicates whether to create an IPv6-only subnet. Default: `false`",
+			},
+			"intra_subnet_ipv6_prefixes": {
+				"default":     [],
+				"description": "Assigns IPv6 intra subnet id based on the Amazon provided /56 prefix base 10 integer (0-256). Must be of equal length to the corresponding IPv4 subnet list",
+			},
+			"intra_subnet_names": {
+				"default":     [],
+				"description": "Explicit values to use in the Name tag on intra subnets. If empty, Name tags are generated",
+			},
+			"intra_subnet_private_dns_hostname_type_on_launch": {
+				"default":     null,
+				"description": "The type of hostnames to assign to instances in the subnet at launch. For IPv6-only subnets, an instance DNS name must be based on the instance ID. For dual-stack and IPv4-only subnets, you can specify whether DNS names use the instance IPv4 address or the instance ID. Valid values: `ip-name`, `resource-name`",
+			},
+			"intra_subnet_suffix": {
+				"default":     "intra",
+				"description": "Suffix to append to intra subnets name",
+			},
+			"intra_subnet_tags": {
+				"default":     {},
+				"description": "Additional tags for the intra subnets",
+			},
+			"intra_subnets": {
+				"default":     [],
+				"description": "A list of intra subnets inside the VPC",
+			},
+			"ipv4_ipam_pool_id": {
+				"default":     null,
+				"description": "(Optional) The ID of an IPv4 IPAM pool you want to use for allocating this VPC's CIDR",
+			},
+			"ipv4_netmask_length": {
+				"default":     null,
+				"description": "(Optional) The netmask length of the IPv4 CIDR you want to allocate to this VPC. Requires specifying a ipv4_ipam_pool_id",
+			},
+			"ipv6_cidr": {
+				"default":     null,
+				"description": "(Optional) IPv6 CIDR block to request from an IPAM Pool. Can be set explicitly or derived from IPAM using `ipv6_netmask_length`",
+			},
+			"ipv6_cidr_block_network_border_group": {
+				"default":     null,
+				"description": "By default when an IPv6 CIDR is assigned to a VPC a default ipv6_cidr_block_network_border_group will be set to the region of the VPC. This can be changed to restrict advertisement of public addresses to specific Network Border Groups such as LocalZones",
+			},
+			"ipv6_ipam_pool_id": {
+				"default":     null,
+				"description": "(Optional) IPAM Pool ID for a IPv6 pool. Conflicts with `assign_generated_ipv6_cidr_block`",
+			},
+			"ipv6_netmask_length": {
+				"default":     null,
+				"description": "(Optional) Netmask length to request from IPAM Pool. Conflicts with `ipv6_cidr_block`. This can be omitted if IPAM pool as a `allocation_default_netmask_length` set. Valid values: `56`",
+			},
+			"manage_default_network_acl": {
+				"default":     true,
+				"description": "Should be true to adopt and manage Default Network ACL",
+			},
+			"manage_default_route_table": {
+				"default":     true,
+				"description": "Should be true to manage default route table",
+			},
+			"manage_default_security_group": {
+				"default":     true,
+				"description": "Should be true to adopt and manage default security group",
+			},
+			"manage_default_vpc": {
+				"default":     false,
+				"description": "Should be true to adopt and manage Default VPC",
+			},
+			"map_customer_owned_ip_on_launch": {
+				"default":     false,
+				"description": "Specify true to indicate that network interfaces created in the subnet should be assigned a customer owned IP address. The `customer_owned_ipv4_pool` and `outpost_arn` arguments must be specified when set to `true`. Default is `false`",
+			},
+			"map_public_ip_on_launch": {
+				"default":     false,
+				"description": "Specify true to indicate that instances launched into the subnet should be assigned a public IP address. Default is `false`",
+			},
+			"name": {
+				"default":     "",
+				"description": "Name to be used on all the resources as identifier",
+			},
+			"nat_eip_tags": {
+				"default":     {},
+				"description": "Additional tags for the NAT EIP",
+			},
+			"nat_gateway_destination_cidr_block": {
+				"default":     "0.0.0.0/0",
+				"description": "Used to pass a custom destination route for private NAT Gateway. If not specified, the default 0.0.0.0/0 is used as a destination route",
+			},
+			"nat_gateway_tags": {
+				"default":     {},
+				"description": "Additional tags for the NAT gateways",
+			},
+			"one_nat_gateway_per_az": {
+				"default":     false,
+				"description": "Should be true if you want only one NAT Gateway per availability zone. Requires `var.azs` to be set, and the number of `public_subnets` created to be greater than or equal to the number of availability zones specified in `var.azs`",
+			},
+			"outpost_acl_tags": {
+				"default":     {},
+				"description": "Additional tags for the outpost subnets network ACL",
+			},
+			"outpost_arn": {
+				"default":     null,
+				"description": "ARN of Outpost you want to create a subnet in",
+			},
+			"outpost_az": {
+				"default":     null,
+				"description": "AZ where Outpost is anchored",
+			},
+			"outpost_dedicated_network_acl": {
+				"default":     false,
+				"description": "Whether to use dedicated network ACL (not default) and custom rules for outpost subnets",
+			},
+			"outpost_inbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Outpost subnets inbound network ACLs",
+			},
+			"outpost_outbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Outpost subnets outbound network ACLs",
+			},
+			"outpost_subnet_assign_ipv6_address_on_creation": {
+				"default":     false,
+				"description": "Specify true to indicate that network interfaces created in the specified subnet should be assigned an IPv6 address. Default is `false`",
+			},
+			"outpost_subnet_enable_dns64": {
+				"default":     true,
+				"description": "Indicates whether DNS queries made to the Amazon-provided DNS Resolver in this subnet should return synthetic IPv6 addresses for IPv4-only destinations. Default: `true`",
+			},
+			"outpost_subnet_enable_resource_name_dns_a_record_on_launch": {
+				"default":     false,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS A records. Default: `false`",
+			},
+			"outpost_subnet_enable_resource_name_dns_aaaa_record_on_launch": {
+				"default":     true,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS AAAA records. Default: `true`",
+			},
+			"outpost_subnet_ipv6_native": {
+				"default":     false,
+				"description": "Indicates whether to create an IPv6-only subnet. Default: `false`",
+			},
+			"outpost_subnet_ipv6_prefixes": {
+				"default":     [],
+				"description": "Assigns IPv6 outpost subnet id based on the Amazon provided /56 prefix base 10 integer (0-256). Must be of equal length to the corresponding IPv4 subnet list",
+			},
+			"outpost_subnet_names": {
+				"default":     [],
+				"description": "Explicit values to use in the Name tag on outpost subnets. If empty, Name tags are generated",
+			},
+			"outpost_subnet_private_dns_hostname_type_on_launch": {
+				"default":     null,
+				"description": "The type of hostnames to assign to instances in the subnet at launch. For IPv6-only subnets, an instance DNS name must be based on the instance ID. For dual-stack and IPv4-only subnets, you can specify whether DNS names use the instance IPv4 address or the instance ID. Valid values: `ip-name`, `resource-name`",
+			},
+			"outpost_subnet_suffix": {
+				"default":     "outpost",
+				"description": "Suffix to append to outpost subnets name",
+			},
+			"outpost_subnet_tags": {
+				"default":     {},
+				"description": "Additional tags for the outpost subnets",
+			},
+			"outpost_subnets": {
+				"default":     [],
+				"description": "A list of outpost subnets inside the VPC",
+			},
+			"private_acl_tags": {
+				"default":     {},
+				"description": "Additional tags for the private subnets network ACL",
+			},
+			"private_dedicated_network_acl": {
+				"default":     false,
+				"description": "Whether to use dedicated network ACL (not default) and custom rules for private subnets",
+			},
+			"private_inbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Private subnets inbound network ACLs",
+			},
+			"private_outbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Private subnets outbound network ACLs",
+			},
+			"private_route_table_tags": {
+				"default":     {},
+				"description": "Additional tags for the private route tables",
+			},
+			"private_subnet_assign_ipv6_address_on_creation": {
+				"default":     false,
+				"description": "Specify true to indicate that network interfaces created in the specified subnet should be assigned an IPv6 address. Default is `false`",
+			},
+			"private_subnet_enable_dns64": {
+				"default":     true,
+				"description": "Indicates whether DNS queries made to the Amazon-provided DNS Resolver in this subnet should return synthetic IPv6 addresses for IPv4-only destinations. Default: `true`",
+			},
+			"private_subnet_enable_resource_name_dns_a_record_on_launch": {
+				"default":     false,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS A records. Default: `false`",
+			},
+			"private_subnet_enable_resource_name_dns_aaaa_record_on_launch": {
+				"default":     true,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS AAAA records. Default: `true`",
+			},
+			"private_subnet_ipv6_native": {
+				"default":     false,
+				"description": "Indicates whether to create an IPv6-only subnet. Default: `false`",
+			},
+			"private_subnet_ipv6_prefixes": {
+				"default":     [],
+				"description": "Assigns IPv6 private subnet id based on the Amazon provided /56 prefix base 10 integer (0-256). Must be of equal length to the corresponding IPv4 subnet list",
+			},
+			"private_subnet_names": {
+				"default":     [],
+				"description": "Explicit values to use in the Name tag on private subnets. If empty, Name tags are generated",
+			},
+			"private_subnet_private_dns_hostname_type_on_launch": {
+				"default":     null,
+				"description": "The type of hostnames to assign to instances in the subnet at launch. For IPv6-only subnets, an instance DNS name must be based on the instance ID. For dual-stack and IPv4-only subnets, you can specify whether DNS names use the instance IPv4 address or the instance ID. Valid values: `ip-name`, `resource-name`",
+			},
+			"private_subnet_suffix": {
+				"default":     "private",
+				"description": "Suffix to append to private subnets name",
+			},
+			"private_subnet_tags": {
+				"default":     {},
+				"description": "Additional tags for the private subnets",
+			},
+			"private_subnet_tags_per_az": {
+				"default":     {},
+				"description": "Additional tags for the private subnets where the primary key is the AZ",
+			},
+			"private_subnets": {
+				"default":     [],
+				"description": "A list of private subnets inside the VPC",
+			},
+			"propagate_intra_route_tables_vgw": {
+				"default":     false,
+				"description": "Should be true if you want route table propagation",
+			},
+			"propagate_private_route_tables_vgw": {
+				"default":     false,
+				"description": "Should be true if you want route table propagation",
+			},
+			"propagate_public_route_tables_vgw": {
+				"default":     false,
+				"description": "Should be true if you want route table propagation",
+			},
+			"public_acl_tags": {
+				"default":     {},
+				"description": "Additional tags for the public subnets network ACL",
+			},
+			"public_dedicated_network_acl": {
+				"default":     false,
+				"description": "Whether to use dedicated network ACL (not default) and custom rules for public subnets",
+			},
+			"public_inbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Public subnets inbound network ACLs",
+			},
+			"public_outbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Public subnets outbound network ACLs",
+			},
+			"public_route_table_tags": {
+				"default":     {},
+				"description": "Additional tags for the public route tables",
+			},
+			"public_subnet_assign_ipv6_address_on_creation": {
+				"default":     false,
+				"description": "Specify true to indicate that network interfaces created in the specified subnet should be assigned an IPv6 address. Default is `false`",
+			},
+			"public_subnet_enable_dns64": {
+				"default":     true,
+				"description": "Indicates whether DNS queries made to the Amazon-provided DNS Resolver in this subnet should return synthetic IPv6 addresses for IPv4-only destinations. Default: `true`",
+			},
+			"public_subnet_enable_resource_name_dns_a_record_on_launch": {
+				"default":     false,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS A records. Default: `false`",
+			},
+			"public_subnet_enable_resource_name_dns_aaaa_record_on_launch": {
+				"default":     true,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS AAAA records. Default: `true`",
+			},
+			"public_subnet_ipv6_native": {
+				"default":     false,
+				"description": "Indicates whether to create an IPv6-only subnet. Default: `false`",
+			},
+			"public_subnet_ipv6_prefixes": {
+				"default":     [],
+				"description": "Assigns IPv6 public subnet id based on the Amazon provided /56 prefix base 10 integer (0-256). Must be of equal length to the corresponding IPv4 subnet list",
+			},
+			"public_subnet_names": {
+				"default":     [],
+				"description": "Explicit values to use in the Name tag on public subnets. If empty, Name tags are generated",
+			},
+			"public_subnet_private_dns_hostname_type_on_launch": {
+				"default":     null,
+				"description": "The type of hostnames to assign to instances in the subnet at launch. For IPv6-only subnets, an instance DNS name must be based on the instance ID. For dual-stack and IPv4-only subnets, you can specify whether DNS names use the instance IPv4 address or the instance ID. Valid values: `ip-name`, `resource-name`",
+			},
+			"public_subnet_suffix": {
+				"default":     "public",
+				"description": "Suffix to append to public subnets name",
+			},
+			"public_subnet_tags": {
+				"default":     {},
+				"description": "Additional tags for the public subnets",
+			},
+			"public_subnet_tags_per_az": {
+				"default":     {},
+				"description": "Additional tags for the public subnets where the primary key is the AZ",
+			},
+			"public_subnets": {
+				"default":     [],
+				"description": "A list of public subnets inside the VPC",
+			},
+			"putin_khuylo": {
+				"default":     true,
+				"description": "Do you agree that Putin doesn't respect Ukrainian sovereignty and territorial integrity? More info: https://en.wikipedia.org/wiki/Putin_khuylo!",
+			},
+			"redshift_acl_tags": {
+				"default":     {},
+				"description": "Additional tags for the redshift subnets network ACL",
+			},
+			"redshift_dedicated_network_acl": {
+				"default":     false,
+				"description": "Whether to use dedicated network ACL (not default) and custom rules for redshift subnets",
+			},
+			"redshift_inbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Redshift subnets inbound network ACL rules",
+			},
+			"redshift_outbound_acl_rules": {
+				"default": [
+					{
+						"cidr_block":  "0.0.0.0/0",
+						"from_port":   "0",
+						"protocol":    "-1",
+						"rule_action": "allow",
+						"rule_number": "100",
+						"to_port":     "0",
+					},
+				],
+				"description": "Redshift subnets outbound network ACL rules",
+			},
+			"redshift_route_table_tags": {
+				"default":     {},
+				"description": "Additional tags for the redshift route tables",
+			},
+			"redshift_subnet_assign_ipv6_address_on_creation": {
+				"default":     false,
+				"description": "Specify true to indicate that network interfaces created in the specified subnet should be assigned an IPv6 address. Default is `false`",
+			},
+			"redshift_subnet_enable_dns64": {
+				"default":     true,
+				"description": "Indicates whether DNS queries made to the Amazon-provided DNS Resolver in this subnet should return synthetic IPv6 addresses for IPv4-only destinations. Default: `true`",
+			},
+			"redshift_subnet_enable_resource_name_dns_a_record_on_launch": {
+				"default":     false,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS A records. Default: `false`",
+			},
+			"redshift_subnet_enable_resource_name_dns_aaaa_record_on_launch": {
+				"default":     true,
+				"description": "Indicates whether to respond to DNS queries for instance hostnames with DNS AAAA records. Default: `true`",
+			},
+			"redshift_subnet_group_name": {
+				"default":     null,
+				"description": "Name of redshift subnet group",
+			},
+			"redshift_subnet_group_tags": {
+				"default":     {},
+				"description": "Additional tags for the redshift subnet group",
+			},
+			"redshift_subnet_ipv6_native": {
+				"default":     false,
+				"description": "Indicates whether to create an IPv6-only subnet. Default: `false`",
+			},
+			"redshift_subnet_ipv6_prefixes": {
+				"default":     [],
+				"description": "Assigns IPv6 redshift subnet id based on the Amazon provided /56 prefix base 10 integer (0-256). Must be of equal length to the corresponding IPv4 subnet list",
+			},
+			"redshift_subnet_names": {
+				"default":     [],
+				"description": "Explicit values to use in the Name tag on redshift subnets. If empty, Name tags are generated",
+			},
+			"redshift_subnet_private_dns_hostname_type_on_launch": {
+				"default":     null,
+				"description": "The type of hostnames to assign to instances in the subnet at launch. For IPv6-only subnets, an instance DNS name must be based on the instance ID. For dual-stack and IPv4-only subnets, you can specify whether DNS names use the instance IPv4 address or the instance ID. Valid values: `ip-name`, `resource-name`",
+			},
+			"redshift_subnet_suffix": {
+				"default":     "redshift",
+				"description": "Suffix to append to redshift subnets name",
+			},
+			"redshift_subnet_tags": {
+				"default":     {},
+				"description": "Additional tags for the redshift subnets",
+			},
+			"redshift_subnets": {
+				"default":     [],
+				"description": "A list of redshift subnets inside the VPC",
+			},
+			"reuse_nat_ips": {
+				"default":     false,
+				"description": "Should be true if you don't want EIPs to be created for your NAT Gateways and will instead pass them in via the 'external_nat_ip_ids' variable",
+			},
+			"secondary_cidr_blocks": {
+				"default":     [],
+				"description": "List of secondary CIDR blocks to associate with the VPC to extend the IP Address pool",
+			},
+			"single_nat_gateway": {
+				"default":     false,
+				"description": "Should be true if you want to provision a single shared NAT Gateway across all of your private networks",
+			},
+			"tags": {
+				"default":     {},
+				"description": "A map of tags to add to all resources",
+			},
+			"use_ipam_pool": {
+				"default":     false,
+				"description": "Determines whether IPAM pool is used for CIDR allocation",
+			},
+			"vpc_block_public_access_exclusions": {
+				"default":     {},
+				"description": "A map of VPC block public access exclusions",
+			},
+			"vpc_block_public_access_options": {
+				"default":     {},
+				"description": "A map of VPC block public access options",
+			},
+			"vpc_flow_log_iam_policy_name": {
+				"default":     "vpc-flow-log-to-cloudwatch",
+				"description": "Name of the IAM policy",
+			},
+			"vpc_flow_log_iam_policy_use_name_prefix": {
+				"default":     true,
+				"description": "Determines whether the name of the IAM policy (`vpc_flow_log_iam_policy_name`) is used as a prefix",
+			},
+			"vpc_flow_log_iam_role_name": {
+				"default":     "vpc-flow-log-role",
+				"description": "Name to use on the VPC Flow Log IAM role created",
+			},
+			"vpc_flow_log_iam_role_use_name_prefix": {
+				"default":     true,
+				"description": "Determines whether the IAM role name (`vpc_flow_log_iam_role_name_name`) is used as a prefix",
+			},
+			"vpc_flow_log_permissions_boundary": {
+				"default":     null,
+				"description": "The ARN of the Permissions Boundary for the VPC Flow Log IAM Role",
+			},
+			"vpc_flow_log_tags": {
+				"default":     {},
+				"description": "Additional tags for the VPC Flow Logs",
+			},
+			"vpc_tags": {
+				"default":     {},
+				"description": "Additional tags for the VPC",
+			},
+			"vpn_gateway_az": {
+				"default":     null,
+				"description": "The Availability Zone for the VPN Gateway",
+			},
+			"vpn_gateway_id": {
+				"default":     "",
+				"description": "ID of VPN Gateway to attach to the VPC",
+			},
+			"vpn_gateway_tags": {
+				"default":     {},
+				"description": "Additional tags for the VPN gateway",
+			},
+		},
+	},
+}
+
+module_paths = [
+	[],
+	[
+		"vpc",
+	],
+]
+
+module = func(path) {
+	if types.type_of(path) is not "list" {
+		error("expected list, got", types.type_of(path))
+	}
+
+	if length(path) < 1 {
+		return _modules.root
+	}
+
+	addr = []
+	for path as p {
+		append(addr, "module")
+		append(addr, p)
+	}
+
+	return _modules[strings.join(addr, ".")]
+}
+
+data = _modules.root.data
+modules = _modules.root.modules
+providers = _modules.root.providers
+resources = _modules.root.resources
+variables = _modules.root.variables
+outputs = _modules.root.outputs
