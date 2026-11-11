@@ -1,0 +1,216 @@
+# Compliant: Irish compute and data, EU DR backup copy + key, IAM role trusted by EC2 only, a non-AWS resource, a data source read from us-east-1, deletion of an old us-east-1 copy, DLM and AWS Backup copies to Frankfurt, a backup vault ARN unknown at plan time.
+resource_changes = {
+	"aws_instance.app": {
+		"address":       "aws_instance.app",
+		"type":          "aws_instance",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region":        "eu-west-1",
+				"instance_type": "t3.micro",
+			},
+			"after_unknown": {},
+		},
+	},
+	"aws_ebs_volume.data": {
+		"address":       "aws_ebs_volume.data",
+		"type":          "aws_ebs_volume",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-west-1",
+				"tags_all": {
+					"Organisation":        "ATUL0012345",
+					"data_classification": "sensitive",
+				},
+			},
+			"after_unknown": {},
+		},
+	},
+	"aws_ebs_snapshot_copy.dr": {
+		"address":       "aws_ebs_snapshot_copy.dr",
+		"type":          "aws_ebs_snapshot_copy",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-central-1",
+				"tags_all": {
+					"Organisation":        "ATUL0012345",
+					"data_classification": "sensitive",
+				},
+			},
+			"after_unknown": {},
+		},
+	},
+	"aws_kms_key.dr": {
+		"address":       "aws_kms_key.dr",
+		"type":          "aws_kms_key",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-central-1",
+			},
+			"after_unknown": {},
+		},
+	},
+	"aws_iam_role.ssm": {
+		"address":       "aws_iam_role.ssm",
+		"type":          "aws_iam_role",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"name":               "ssm",
+				"assume_role_policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": \"sts:AssumeRole\", \"Principal\": {\"Service\": \"ec2.amazonaws.com\"}}]}",
+			},
+			"after_unknown": {},
+		},
+	},
+	"random_id.suffix": {
+		"address":       "random_id.suffix",
+		"type":          "random_id",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/random",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"byte_length": 4,
+			},
+			"after_unknown": {},
+		},
+	},
+	"data.aws_ami.al2023": {
+		"address":       "data.aws_ami.al2023",
+		"type":          "aws_ami",
+		"mode":          "data",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"read",
+			],
+			"after": {
+				"region": "us-east-1",
+			},
+			"after_unknown": {},
+		},
+	},
+	"aws_ebs_snapshot_copy.old_us": {
+		"address":       "aws_ebs_snapshot_copy.old_us",
+		"type":          "aws_ebs_snapshot_copy",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"delete",
+			],
+			"after":         null,
+			"after_unknown": {},
+		},
+	},
+	"aws_dlm_lifecycle_policy.backups": {
+		"address":       "aws_dlm_lifecycle_policy.backups",
+		"type":          "aws_dlm_lifecycle_policy",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-west-1",
+				"policy_details": [
+					{
+						"schedule": [
+							{
+								"cross_region_copy_rule": [
+									{
+										"target_region": "eu-central-1",
+										"encrypted":     true,
+									},
+								],
+							},
+						],
+					},
+				],
+			},
+			"after_unknown": {},
+		},
+	},
+	"aws_backup_plan.daily": {
+		"address":       "aws_backup_plan.daily",
+		"type":          "aws_backup_plan",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-west-1",
+				"rule": [
+					{
+						"copy_action": [
+							{
+								"destination_vault_arn": "arn:aws:backup:eu-central-1:111122223333:backup-vault:dr",
+							},
+						],
+					},
+				],
+			},
+			"after_unknown": {},
+		},
+	},
+	"aws_backup_plan.new_vault": {
+		"address":       "aws_backup_plan.new_vault",
+		"type":          "aws_backup_plan",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-west-1",
+				"rule": [
+					{
+						"copy_action": [
+							{},
+						],
+					},
+				],
+			},
+			"after_unknown": {
+				"rule": [
+					{
+						"copy_action": [
+							{
+								"destination_vault_arn": true,
+							},
+						],
+					},
+				],
+			},
+		},
+	},
+}

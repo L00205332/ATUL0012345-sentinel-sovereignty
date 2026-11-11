@@ -1,0 +1,31 @@
+# Non-compliant: the DLM policy itself is in Ireland, but its cross-region copy rule sends snapshots to us-east-1.
+resource_changes = {
+	"aws_dlm_lifecycle_policy.backups": {
+		"address":       "aws_dlm_lifecycle_policy.backups",
+		"type":          "aws_dlm_lifecycle_policy",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-west-1",
+				"policy_details": [
+					{
+						"schedule": [
+							{
+								"cross_region_copy_rule": [
+									{
+										"target_region": "us-east-1",
+									},
+								],
+							},
+						],
+					},
+				],
+			},
+			"after_unknown": {},
+		},
+	},
+}
