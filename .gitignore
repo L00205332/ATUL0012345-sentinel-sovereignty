@@ -10,6 +10,9 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
+# Sentinel CLI local cache (created by `sentinel test`)
+.sentinel/
+
 # Variable files can hold secrets. Keep an example file only.
 *.tfvars
 *.tfvars.json
