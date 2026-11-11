@@ -1,0 +1,38 @@
+terraform_version = "1.17.1"
+
+outputs = {
+	"regions": {
+		"name":      "regions",
+		"sensitive": false,
+		"value": {
+			"dr":      "eu-central-1",
+			"primary": "eu-west-1",
+		},
+	},
+}
+
+resources = {
+	"aws_ssm_parameter.al2023_ami": {
+		"address":        "aws_ssm_parameter.al2023_ami",
+		"depends_on":     [],
+		"deposed_key":    "",
+		"index":          null,
+		"mode":           "data",
+		"module_address": "",
+		"name":           "al2023_ami",
+		"provider_name":  "registry.terraform.io/hashicorp/aws",
+		"tainted":        false,
+		"type":           "aws_ssm_parameter",
+		"values": {
+			"arn":             "arn:aws:ssm:eu-west-1::parameter/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64",
+			"id":              "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64",
+			"insecure_value":  "ami-017c8c0d88ce880d8",
+			"name":            "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64",
+			"region":          "eu-west-1",
+			"type":            "String",
+			"value":           "ami-017c8c0d88ce880d8",
+			"version":         201,
+			"with_decryption": true,
+		},
+	},
+}

@@ -44,6 +44,7 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 │   ├── instance_type.sentinel         ⏳
 │   ├── encryption.sentinel            ⏳
 │   ├── metadata.sentinel              ⏳
+│   ├── mocks/compliant-baseline/      ✅ REAL mocks downloaded from HCP run run-Xz7zmhMJKXVNHwa3
 │   └── test/<policy>/                 ✅ network · ⏳ others: *.hcl test cases + mock-*.sentinel
 ├── terraform/
 │   ├── versions.tf                    ✅ Terraform/provider constraints + HCP cloud block
@@ -227,7 +228,7 @@ Consequences:
 ### Destroy / cleanup
 
 ```bash
-powershell -ExecutionPolicy Bypass -File .\scripts\destroy.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\destroy.ps1 -AwsProfile atu
 ```
 
 The workspace is VCS-driven, so `terraform destroy` from the CLI is not allowed. The script queues a destroy run through the HCP API, asks you to type the workspace name to confirm, waits for the apply, and then runs `audit-regions.ps1`. KMS keys go into a 7-day `PendingDeletion` state (an AWS minimum) and are not reported as leftovers.
@@ -235,7 +236,7 @@ The workspace is VCS-driven, so `terraform destroy` from the CLI is not allowed.
 Audit only (e.g. for the drift demo):
 
 ```bash
-powershell -ExecutionPolicy Bypass -File .\scripts\audit-regions.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\audit-regions.ps1 -AwsProfile atu
 ```
 
 ### After the assignment is graded
@@ -259,8 +260,32 @@ _TODO: generating `tfplan`._
 | network | `fail-public-rdp.hcl` | RDP 3389 from internet (SSH rule passes, ingress rule fails) | false | ✅ PASS |
 | network | `fail-inline-sg.hcl` | SSH via inline `aws_security_group` ingress | false | ✅ PASS |
 | network | `fail-legacy-rule.hcl` | SSH on IPv6 via legacy `aws_security_group_rule` | false | ✅ PASS |
+| network | `pass-real-baseline.hcl` | **Real plan** from HCP run `run-Xz7zmhMJKXVNHwa3` (23 resources) | true | ✅ PASS |
 
-_TODO: screenshots in `documentation/evidence/`, HCP policy check runs (compliant + non-compliant), real downloaded mocks._
+### HCP Terraform runs
+
+| Run | Trigger | Plan | Policy check | Outcome |
+|---|---|---|---|---|
+| `run-Xz7zmhMJKXVNHwa3` "First compliant run: baseline stack with network policy" | UI, commit `74787df` | 23 to add, 0 change, 0 destroy | `network` (hard-mandatory) ✅ 1/1 passed, on HCP Sentinel 0.40.x | ✅ Applied: 23 created (confirmed manually: "Compliant baseline: network policy passed") |
+
+### Deployed state vs policy (audit)
+
+`scripts/audit-regions.ps1 -AwsProfile atu`, before and after the first apply:
+
+| When | eu-west-1 | eu-central-1 | us-east-1 (off-region) |
+|---|---|---|---|
+| Before apply | nothing | nothing | nothing: **CLEAN** |
+| After apply | instance (running), root volume 8 GiB encrypted, data volume 1 GiB encrypted, snapshot encrypted, VPC `10.20.0.0/16`, KMS alias | DR snapshot copy encrypted, DR KMS alias | **no drift** |
+
+This confirms the real outcome matches the design: compute and data in Ireland, only an encrypted backup copy in Frankfurt, nothing outside the EU. It also confirms that the snapshot's `encrypted` value, unknown at plan time, ends up `True` after apply because it's inherited from the encrypted volume.
+
+### What the real mocks showed (input to the remaining policies)
+- **`region` is known at plan time for every regional resource**, including those that never set it (AWS provider v6 fills in the provider's region). All `eu-west-1`, except the DR KMS key, alias and snapshot copy in `eu-central-1`. Only the three IAM resources have no `region` (global service). → The sovereignty policy can read `change.after.region` directly.
+- **A snapshot's `encrypted` is unknown at plan time** (inherited from its volume). → The encryption policy must check the source volume, and the DR copy's own `encrypted`/`kms_key_id`, instead of the snapshot itself.
+- **`tfconfig/v2` lists only the provider blocks and module calls written in our code** (`hashicorp/aws ~> 6.0`, `terraform-aws-modules/vpc/aws 6.0.0`). The VPC module's internal `>= 5.79.0` provider requirement is invisible to Sentinel; only `.terraform.lock.hcl` records it.
+- **Mock hygiene:** before committing, the mocks were scanned for credentials, the AWS account ID and emails. HCP masks sensitive variables (only `"sensitive": true` is recorded, never the value).
+
+_TODO: screenshots in `documentation/evidence/`, non-compliant runs._
 
 ## 7. Decision justification
 
@@ -284,6 +309,8 @@ _TODO_
 Points identified so far:
 - Values computed during apply (e.g. a CIDR taken from another resource) are unknown at plan time, so a policy can only partially judge them (see network decision 4).
 - Sentinel cannot see changes made outside Terraform (drift).
+- Some security-relevant values are unknown until apply (e.g. a snapshot's `encrypted`, inherited from its volume). Policies have to check the place where the value *is* known, which takes knowledge of each resource type.
+- Sentinel sees only the configuration we wrote: a module's internal provider requirements and nested dependencies don't appear in `tfconfig/v2`.
 - Policies also run on **destroy** plans. A policy must not block the removal of non-compliant resources, so the policies only evaluate resources being created or updated.
 
 ### 7.5 Maintaining policies as cloud environments evolve

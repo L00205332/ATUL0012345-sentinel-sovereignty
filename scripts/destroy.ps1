@@ -18,7 +18,7 @@
 
 .EXAMPLE
     .\scripts\destroy.ps1
-    .\scripts\destroy.ps1 -AwsProfile admin
+    .\scripts\destroy.ps1 -AwsProfile atu
 #>
 param(
     [string] $Organisation = "L00205332",
@@ -104,6 +104,6 @@ if ($ws.attributes.'resource-count' -eq 0) {
 # --- 5. Audit -------------------------------------------------------------------
 Write-Host ""
 $auditArgs = @{}
-if ($AwsProfile) { $auditArgs.Profile = $AwsProfile }
+if ($AwsProfile) { $auditArgs.AwsProfile = $AwsProfile }
 & (Join-Path $PSScriptRoot "audit-regions.ps1") @auditArgs
 exit $LASTEXITCODE

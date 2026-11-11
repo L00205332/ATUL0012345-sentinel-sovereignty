@@ -92,6 +92,23 @@ Parse-checked both scripts, validated the JSON and re-ran `sentinel test` (8/8 P
 
 **What the AI did:** Identified that the Free tier allows no versioned policy sets at all (neither VCS nor folder upload), only individually managed policies. Rewrote `scripts/upload-policies.ps1` to read the policy blocks from `sentinel.hcl` and create or update each policy through the HCP Policies API: attach it to the set, upload the `.sentinel` code, and warn about stale policies. Added a `-ParseOnly` mode and verified the parsing offline. Updated the README with the Free-tier finding and its consequences (drift risk, no shared modules or params, Sentinel 0.40.x on HCP vs 0.41.0 locally).
 
+### Prompt 13 (2026-11-11)
+> [screenshots: first HCP run "First compliant run: baseline stack with network policy": plan 23 to create, Sentinel policies passed 1/1, aws_ebs_snapshot.data region "eu-west-1"]
+> done, mocks extracted into the folder
+
+**What the AI did:** Moved the real mocks to `sentinel/mocks/compliant-baseline/` (a folder under `test/` would be read as a policy's tests). Scanned them for credentials, the account ID and emails: only variable names and `"sensitive": true`, no values. Analysed the real plan and config:
+- `region` is known for every regional resource, and only IAM has none.
+- A snapshot's `encrypted` is unknown at plan time.
+- `tfconfig/v2` shows only root provider blocks and module calls.
+
+Added `pass-real-baseline.hcl` (network vs the real plan, 9/9 PASS), git-ignored the mock archive, and documented the run and the findings in the README.
+
+### Prompt 14 (2026-11-11)
+> [screenshots: run "First compliant run" Apply finished, 23 created; terminal output of the AWS CLI checks and scripts/audit-regions.ps1 -AwsProfile atu listing 8 LEFTOVER items in eu-west-1/eu-central-1 and nothing in us-east-1]
+> check now
+
+**What the AI did:** Confirmed the deployed state matches the design: compute and data in eu-west-1, only an encrypted DR snapshot copy and its key alias in eu-central-1, no off-region resources. Recorded the before/after audit and the applied run in the README. Earlier in this step it renamed the audit script's `-Profile` parameter to `-AwsProfile`, because `$PROFILE` is a built-in PowerShell variable.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->
