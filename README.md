@@ -33,7 +33,8 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 ├── iam/
 │   └── hcp-terraform-policy.json      ✅ least-privilege policy for the HCP Terraform IAM user
 ├── scripts/
-│   ├── upload-policies.ps1            ✅ sentinel test → read sentinel.hcl → create/update each policy in HCP via API
+│   ├── build-bundle.ps1               ✅ merges mandatory policies into ONE hard-mandatory bundle + bundle tests
+│   ├── upload-policies.ps1            ✅ clean-tree check → tests → bundle → deploy to HCP via API (git commit recorded)
 │   ├── destroy.ps1                    ✅ destroy run via HCP API → confirm → wait → audit
 │   └── audit-regions.ps1              ✅ leftovers in EU regions + off-region drift (us-east-1)
 ├── sentinel/
@@ -177,16 +178,35 @@ _TODO_
 
 ### 4.4 Enforcement levels
 
-Planned (final values set in `sentinel.hcl`):
+Levels are set per policy in `sentinel.hcl` (✅ = built):
 
-| Policy | Level | Reason |
-|---|---|---|
-| sovereignty | hard-mandatory | Legal/jurisdictional requirement, no override |
-| supply_chain | hard-mandatory | An untrusted provider or module can compromise everything |
-| encryption | hard-mandatory | Data protection baseline |
-| metadata (IMDSv2) | hard-mandatory | Blocks credential theft via SSRF |
-| network | hard-mandatory | Public SSH is a direct attack surface |
-| instance_type | soft-mandatory | Cost/standards control. An admin may override a justified exception, and every override is logged in HCP. |
+| Policy | Level in `sentinel.hcl` | Deployed on HCP Free as | Reason |
+|---|---|---|---|
+| sovereignty ✅ | hard-mandatory | part of **`atul0012345-guardrails`** (hard-mandatory) | Legal/jurisdictional requirement, no override |
+| network ✅ | hard-mandatory | part of `atul0012345-guardrails` | Public SSH is a direct attack surface |
+| supply_chain | hard-mandatory | part of `atul0012345-guardrails` | An untrusted provider or module can compromise everything |
+| encryption | hard-mandatory | part of `atul0012345-guardrails` | Data protection baseline |
+| metadata (IMDSv2) | hard-mandatory | part of `atul0012345-guardrails` | Blocks credential theft via SSRF |
+| instance_type | **advisory** | separate advisory policy | Cost/standards control: warns, doesn't block |
+
+**Why one bundled policy:** HCP Free allows **only one mandatory policy per organisation** (`403: The organization has reached the limit of 1 mandatory policy`). Making only sovereignty mandatory would have left the infrastructure security controls as warnings. Instead, `scripts/build-bundle.ps1` merges every mandatory policy into one hard-mandatory policy, so **all of them block**.
+- The repo keeps one file per control area, each with its own tests, matching the brief's structure.
+- Each `FAIL` line in the output still names the original rule, e.g. `FAIL sensitive_data_resident: …`.
+
+**Trade-offs of bundling:**
+- **One enforcement level for all bundled controls.** Soft-mandatory with a per-control override isn't possible, so `instance_type` was planned as soft-mandatory and is now **advisory**. It still demonstrates a second enforcement level.
+- **An override would cover everything.** On a paid tier the same `sentinel.hcl` would deploy the policies separately, each at its own level.
+
+**How the bundle is built and checked (`build-bundle.ps1`):**
+1. Imports are deduplicated, and every `param` is moved to the top, because Sentinel requires params before any statement. The first build failed on exactly this.
+2. Each policy's body is copied without its `main`, and a single `main = all [every rule]` is generated.
+3. Two policies defining the same top-level name stop the build (name-clash check).
+4. **Bundle tests** are generated from each policy's own tests:
+   - fail cases must be rejected for the same rules
+   - synthetic pass cases must keep that policy's rules true
+   - **real-plan** cases (`pass-real*`) must pass the whole bundle
+   
+   Result: 20/20 PASS.
 
 ## 5. How to run
 
@@ -226,21 +246,28 @@ The last command records checksums for both the HCP runners (Linux) and local Wi
 | Terraform version | 1.17.1 | Matches local CLI and lock file |
 | Apply method | Manual | A human confirms every apply after seeing the policy result |
 | AWS credentials | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as **sensitive environment variables** | Static keys: an accepted trade-off (long-lived secret held by a SaaS; OIDC dynamic credentials would be better in production), mitigated by a dedicated least-privilege, region-restricted IAM user whose keys are deleted after grading |
-| Policy set | `atul0012345-sovereignty-policies`, scoped to the workspace only, Platform execution mode (Sentinel 0.40.x), no UI parameters | The single Free-tier policy set. Its policies are **individually managed** and deployed by `scripts/upload-policies.ps1` through the HCP Policies API |
+| Policy set | `atul0012345-sovereignty-policies`, scoped to the workspace only, Platform execution mode (Sentinel 0.40.x), no UI parameters | The single Free-tier policy set. It holds the **`atul0012345-guardrails`** bundle (hard-mandatory) plus any advisory policies, all **individually managed** and deployed by `scripts/upload-policies.ps1` through the HCP Policies API |
 
-**Why individually managed policies:** the HCP Free tier allows **0 versioned policy sets**. HCP can neither read a policy set from GitHub nor accept an uploaded `sentinel/` folder (`403: The organization has reached the limit of 0 versioned policy sets`). Individually managed policies are allowed, and they can be created and updated through the API, so the repo can still be deployed automatically.
+**HCP Free limits found during setup (each one shaped the design):**
+
+| Limit | Found when | Error | Response |
+|---|---|---|---|
+| 1 policy set | creating the set | "You have 1 policy set left" | One set for the workspace |
+| 0 **versioned** policy sets | uploading `sentinel/` as a version | `403 … limit of 0 versioned policy sets` | Individually managed policies, created through the API |
+| 1 **mandatory** policy | deploying the second hard-mandatory policy | `403 … limit of 1 mandatory policy` | All mandatory policies bundled into one (see 4.4) |
 
 **Policy deployment flow:** policy PR → review → merge to `main` → `scripts/upload-policies.ps1`:
-1. Runs `sentinel test`. Nothing untested is deployed.
-2. Reads each `policy` block (name, source, enforcement level) from `sentinel.hcl`.
-3. Creates or updates each policy in HCP, attaches it to the policy set, and uploads the `.sentinel` code from the repo.
-4. Warns about policies in HCP that are no longer in `sentinel.hcl`.
+1. **Refuses uncommitted changes** under `sentinel/`, and writes the **git commit** into each policy's HCP description. You can always trace which code HCP is enforcing.
+2. Runs `sentinel test` on the separate policies.
+3. Builds the bundle and runs the bundle tests (`build-bundle.ps1`).
+4. Policies in HCP that the repo no longer deploys are listed, and **deleted only with `-RemoveStale`**.
+5. Creates or updates the bundle (hard-mandatory) and each advisory policy, attaches them to the set and uploads the code.
 
-GitHub stays the single source of truth, and `sentinel.hcl` drives what HCP enforces.
+`-DryRun` does steps 1–3 without any API call.
 
 Consequences:
-- **Drift risk:** if the script isn't run after a merge, HCP keeps enforcing the old code. Running it in CI on merge to `main` would remove that manual step (see 7.5).
-- **No shared modules or `sentinel.hcl` params:** individually managed policies are evaluated on their own. The policies therefore use only standard imports, with parameter defaults kept in the code.
+- **Drift risk:** if the script isn't run after a merge, HCP keeps enforcing the old code. The commit in the description makes that visible, and running the script in CI on merge to `main` would remove the manual step (see 7.5).
+- **Bundle-ready policies:** no shared modules or `sentinel.hcl` params; each file has its imports at the top, a final `main`, and unique top-level names.
 - **No UI parameters:** parameters could be set in the policy set UI, but that would change policy behaviour without any Git history, so none are used.
 - **Version gap:** HCP Platform mode runs Sentinel **0.40.x**, while local tests use **0.41.0**. The policies use only long-standing language features, and the first HCP policy check confirms they behave the same.
 
@@ -351,7 +378,7 @@ Points identified so far:
 _TODO_
 
 Points identified so far:
-- Platform tiers constrain the design. HCP Free allows one policy set and 0 versioned policy sets (no VCS link, no folder upload), so policies are deployed one by one through the API and have to be kept in sync with `main`. This was only discovered at upload time (HTTP 403), which shows that platform limits are part of the policy design too.
+- Platform tiers constrain the design. HCP Free allows one policy set, 0 versioned policy sets and **one mandatory policy**. That forced API deployment, policy bundling and a single enforcement level for all blocking controls. Each limit was only discovered when an API call failed (HTTP 403), which shows that platform limits are part of the policy design too.
 - New AWS resource types or arguments (e.g. the per-resource `region` in provider v6) can open new paths around a policy, or make a policy simpler. Policies need reviewing whenever provider major versions change.
 
 ## 8. Declaration of AI tool usage

@@ -25,3 +25,6 @@ sentinel/mocks/**/*.tar.gz
 # deliverables). Never commit AWS keys or HCP tokens.
 .terraformrc
 terraform.rc
+
+# Generated policy bundle (rebuilt by scripts/build-bundle.ps1 on every deploy)
+sentinel/build/
