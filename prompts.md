@@ -121,6 +121,18 @@ Added `pass-real-baseline.hcl` (network vs the real plan, 9/9 PASS), git-ignored
 
 The first parse failed because `rule` is a Sentinel keyword used as a variable name, so the loop variables were renamed. Generated 10 hand-written mocks and test cases with a script, and added a test against the real plan. Two tests failed because `main = rule { a and b }` short-circuits, so later rules were never evaluated; `main` now uses `all [ ... ]` in both policies, so every violation is reported. Result: 20/20 tests PASS. A mutation test (adding `us-east-1` to the approved regions) made 4 tests fail, showing the tests catch a weakened policy. Registered the policy in `sentinel.hcl` and documented the rules, design decisions, results and limitations in the README.
 
+### Prompt 16 (2026-11-11)
+> [screenshot: upload-policies.ps1 output, 20/20 tests PASS, then 403 "The organization has reached the limit of 1 mandatory policy."]
+> [answer to the AI's question "HCP Free allows only 1 mandatory policy. How should we enforce the policies?"]: Bundle into 1 policy (Recommended)
+
+**What the AI did:** Wrote `scripts/build-bundle.ps1`, which merges every mandatory policy from `sentinel.hcl` into one hard-mandatory policy `atul0012345-guardrails`:
+- deduplicates imports and moves `param`s to the top (the first build failed because Sentinel needs params before statements)
+- checks for name clashes
+- generates one `main` over all rules
+- generates and runs bundle tests derived from each policy's own tests (20/20 PASS)
+
+Rewrote `scripts/upload-policies.ps1`: it refuses uncommitted changes, records the git commit in the policy description, tests, builds, deletes stale policies only with `-RemoveStale`, deploys the bundle plus advisory policies, and has a `-DryRun` mode (verified). Git-ignored `sentinel/build/`. Documented the three Free-tier limits, the bundling design and its trade-offs (one enforcement level, `instance_type` moved to advisory) in the README.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->
