@@ -33,7 +33,7 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 ├── iam/
 │   └── hcp-terraform-policy.json      ✅ least-privilege policy for the HCP Terraform IAM user
 ├── scripts/
-│   ├── upload-policies.ps1            ✅ sentinel test → package sentinel/ → upload as policy set version
+│   ├── upload-policies.ps1            ✅ sentinel test → read sentinel.hcl → create/update each policy in HCP via API
 │   ├── destroy.ps1                    ✅ destroy run via HCP API → confirm → wait → audit
 │   └── audit-regions.ps1              ✅ leftovers in EU regions + off-region drift (us-east-1)
 ├── sentinel/
@@ -206,9 +206,23 @@ The last command records checksums for both the HCP runners (Linux) and local Wi
 | Terraform version | 1.17.1 | Matches local CLI and lock file |
 | Apply method | Manual | A human confirms every apply after seeing the policy result |
 | AWS credentials | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` as **sensitive environment variables** | Static keys: an accepted trade-off (long-lived secret held by a SaaS; OIDC dynamic credentials would be better in production), mitigated by a dedicated least-privilege, region-restricted IAM user whose keys are deleted after grading |
-| Policy set | `atul0012345-sovereignty-policies`, **Automated (API-managed)**, scoped to the workspace | The single Free-tier policy set. The Free tier does not allow VCS-backed policy sets, so `scripts/upload-policies.ps1` uploads `sentinel/` from the repo as a new policy set version |
+| Policy set | `atul0012345-sovereignty-policies`, scoped to the workspace only, Platform execution mode (Sentinel 0.40.x), no UI parameters | The single Free-tier policy set. Its policies are **individually managed** and deployed by `scripts/upload-policies.ps1` through the HCP Policies API |
 
-**Policy deployment flow:** policy PR → review → merge to `main` → `scripts/upload-policies.ps1` (runs `sentinel test`, then uploads only `sentinel.hcl` + `*.sentinel`) → HCP enforces the new version from the next run. GitHub stays the single source of truth. The risk is that HCP keeps enforcing an older version if the upload is forgotten; automating the upload in CI on merge to `main` would remove that manual step (see 7.5).
+**Why individually managed policies:** the HCP Free tier allows **0 versioned policy sets**. HCP can neither read a policy set from GitHub nor accept an uploaded `sentinel/` folder (`403: The organization has reached the limit of 0 versioned policy sets`). Individually managed policies are allowed, and they can be created and updated through the API, so the repo can still be deployed automatically.
+
+**Policy deployment flow:** policy PR → review → merge to `main` → `scripts/upload-policies.ps1`:
+1. Runs `sentinel test`. Nothing untested is deployed.
+2. Reads each `policy` block (name, source, enforcement level) from `sentinel.hcl`.
+3. Creates or updates each policy in HCP, attaches it to the policy set, and uploads the `.sentinel` code from the repo.
+4. Warns about policies in HCP that are no longer in `sentinel.hcl`.
+
+GitHub stays the single source of truth, and `sentinel.hcl` drives what HCP enforces.
+
+Consequences:
+- **Drift risk:** if the script isn't run after a merge, HCP keeps enforcing the old code. Running it in CI on merge to `main` would remove that manual step (see 7.5).
+- **No shared modules or `sentinel.hcl` params:** individually managed policies are evaluated on their own. The policies therefore use only standard imports, with parameter defaults kept in the code.
+- **No UI parameters:** parameters could be set in the policy set UI, but that would change policy behaviour without any Git history, so none are used.
+- **Version gap:** HCP Platform mode runs Sentinel **0.40.x**, while local tests use **0.41.0**. The policies use only long-standing language features, and the first HCP policy check confirms they behave the same.
 
 ### Destroy / cleanup
 
@@ -276,7 +290,7 @@ Points identified so far:
 _TODO_
 
 Points identified so far:
-- Platform tiers constrain the design. HCP Free allows one policy set and no VCS-backed policy sets, so deploying policies became an API upload step that has to be kept in sync with `main`.
+- Platform tiers constrain the design. HCP Free allows one policy set and 0 versioned policy sets (no VCS link, no folder upload), so policies are deployed one by one through the API and have to be kept in sync with `main`. This was only discovered at upload time (HTTP 403), which shows that platform limits are part of the policy design too.
 - New AWS resource types or arguments (e.g. the per-resource `region` in provider v6) can open new paths around a policy, or make a policy simpler. Policies need reviewing whenever provider major versions change.
 
 ## 8. Declaration of AI tool usage

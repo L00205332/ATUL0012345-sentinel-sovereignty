@@ -87,6 +87,11 @@ Parse-checked both scripts, validated the JSON and re-ran `sentinel test` (8/8 P
 
 **What the AI did:** Recommended the Automated (API-managed) policy set over pasting policies into the UI, so that GitHub stays the source of truth. Wrote `scripts/upload-policies.ps1`, which runs `sentinel test`, packages `sentinel.hcl` and the `*.sentinel` files (tests and the local `.sentinel/` cache excluded), creates a policy set version through the HCP API, uploads it and waits until it's ready. Dry-ran the packaging step, added `.sentinel/` to `.gitignore`, and documented the policy deployment flow and the Free-tier constraint in the README.
 
+### Prompt 12 (2026-11-11)
+> [pasted output of scripts/upload-policies.ps1: sentinel test 8/8 PASS, policy set found, upload rejected with 403 "The organization has reached the limit of 0 versioned policy sets."]
+
+**What the AI did:** Identified that the Free tier allows no versioned policy sets at all (neither VCS nor folder upload), only individually managed policies. Rewrote `scripts/upload-policies.ps1` to read the policy blocks from `sentinel.hcl` and create or update each policy through the HCP Policies API: attach it to the set, upload the `.sentinel` code, and warn about stale policies. Added a `-ParseOnly` mode and verified the parsing offline. Updated the README with the Free-tier finding and its consequences (drift risk, no shared modules or params, Sentinel 0.40.x on HCP vs 0.41.0 locally).
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->
