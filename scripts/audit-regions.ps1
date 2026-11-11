@@ -20,10 +20,10 @@
 
 .EXAMPLE
     .\scripts\audit-regions.ps1
-    .\scripts\audit-regions.ps1 -Profile admin -OffRegions us-east-1,us-west-2
+    .\scripts\audit-regions.ps1 -AwsProfile atu -OffRegions us-east-1,us-west-2
 #>
 param(
-    [string]   $Profile,
+    [string]   $AwsProfile,
     [string[]] $ApprovedRegions = @("eu-west-1", "eu-central-1"),
     [string[]] $OffRegions      = @("us-east-1"),
     [string]   $Organisation    = "ATUL0012345"
@@ -35,7 +35,7 @@ $found = 0
 function Invoke-Aws {
     param([string] $Region, [string[]] $Arguments)
     $cmd = @($Arguments) + @("--region", $Region, "--output", "json")
-    if ($Profile) { $cmd += @("--profile", $Profile) }
+    if ($AwsProfile) { $cmd += @("--profile", $AwsProfile) }
     $raw = & aws @cmd
     if ($LASTEXITCODE -ne 0) { throw "aws $($Arguments -join ' ') failed in $Region" }
     return ($raw -join "`n") | ConvertFrom-Json

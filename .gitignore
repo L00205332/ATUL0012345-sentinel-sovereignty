@@ -13,6 +13,9 @@ override.tf.json
 # Sentinel CLI local cache (created by `sentinel test`)
 .sentinel/
 
+# Downloaded mock archives: the extracted files are committed instead
+sentinel/mocks/**/*.tar.gz
+
 # Variable files can hold secrets. Keep an example file only.
 *.tfvars
 *.tfvars.json
