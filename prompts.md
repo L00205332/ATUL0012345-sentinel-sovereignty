@@ -194,6 +194,31 @@ Spotted that GitHub still allowed merging a PR with a failed check, and explaine
 
 **What the AI did:** Copied 27 screenshots into `documentation/evidence/` with numbered names. Redacted the account ID line in the two audit screenshots using Windows' System.Drawing (checked visually), and excluded the access-key and setup-only screenshots. Wrote `documentation/evidence/test-results.md`: a summary table, the HCP Free limits, the integration, and scenarios 1–4 with their screenshots, expected vs actual results and findings, with placeholders for test C and the drift demo. Checked that every image link resolves, and linked the page from README §6.
 
+### Prompt 25 (2026-11-12)
+> done, PR merged but why i can't see the evidences inside the readme.md?
+
+**What the AI did:** Explained that the README only linked to the evidence page and embedded no images. Added a "Key evidence at a glance" section to README §6 that embeds 9 screenshots as clickable thumbnails:
+- the compliant applied run
+- the three blocked policy outputs side by side
+- the two failed GitHub PR checks
+- the post-apply audit (redacted)
+- the float bug before the fix
+- the policy set
+
+The full set stays in `test-results.md`. Checked that every embedded path exists.
+
+### Prompt 26 (2026-11-12)
+> i think we need to migrate whole tests and test-results inside readme.md
+
+**What the AI did:** Rebuilt README §6 as "Testing and evidence" containing everything:
+- 6.1 a summary and how prevention works
+- 6.2 the platform limits and HCP integration
+- 6.3–6.8 one subsection per scenario, with its run table, policy output, embedded screenshots and findings
+- 6.9 the full 44-test table, bundle tests and mutation tests as a table
+- 6.10 the real-mock findings
+
+All 27 screenshots are embedded as clickable thumbnails. Fixed a rendering bug: blank lines inside three tables had made rows display as raw text on GitHub. Verified every image path and internal anchor. Reduced `documentation/evidence/test-results.md` to an index that links into README §6, keeping the brief's folder structure without duplicated content.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->
