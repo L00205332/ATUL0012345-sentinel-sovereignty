@@ -1,0 +1,104 @@
+# CI for ATUL0012345: checks every PR and every push to main, and deploys the
+# Sentinel policies to HCP Terraform after a merge to main.
+#
+# Supply chain hardening of the pipeline itself:
+#   - every third-party action is pinned to a full commit SHA, not a movable tag
+#   - the Sentinel CLI is downloaded from HashiCorp and checked against a
+#     SHA-256 hard-coded here (taken from HashiCorp's published SHA256SUMS)
+#   - the workflow token is read-only; the HCP token is only available to the
+#     deploy job, and only on main
+#
+# HCP Terraform itself runs the real plan + policy check for each PR (the
+# "Terraform Cloud" status check); this workflow adds fast static checks and
+# the policy unit tests, and closes the "remember to upload the policies" gap.
+
+name: terraform-checks
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - "sentinel/**"
+      - "scripts/**"
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - "sentinel/**"
+      - "scripts/**"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+env:
+  TERRAFORM_VERSION: "1.17.1"
+  SENTINEL_VERSION: "0.41.0"
+  SENTINEL_SHA256: "357ca824c9ac3ab11520a5ad2c2547b34aeb01dd4e3b9f1c7dc325d0be8a9935"
+
+jobs:
+  terraform:
+    name: Terraform fmt + validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff
+      - name: terraform init (no backend, verifies provider checksums against the lock file)
+        run: terraform init -backend=false -input=false
+      - name: terraform validate
+        run: terraform validate
+
+  sentinel:
+    name: Sentinel tests + bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Sentinel (checksum-verified)
+        run: |
+          curl -fsSLo sentinel.zip "https://releases.hashicorp.com/sentinel/${SENTINEL_VERSION}/sentinel_${SENTINEL_VERSION}_linux_amd64.zip"
+          echo "${SENTINEL_SHA256}  sentinel.zip" | sha256sum -c -
+          unzip -q sentinel.zip -d "$HOME/bin" && rm sentinel.zip
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - name: sentinel fmt (policies)
+        working-directory: sentinel
+        run: sentinel fmt -check=true *.sentinel
+      - name: sentinel test (every policy against its mocks)
+        working-directory: sentinel
+        run: sentinel test
+      - name: Build the hard-mandatory bundle and run the bundle tests
+        shell: pwsh
+        run: ./scripts/build-bundle.ps1
+
+  deploy-policies:
+    name: Deploy policies to HCP Terraform
+    needs: [terraform, sentinel]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: deploy-policies
+    env:
+      TFE_TOKEN: ${{ secrets.TFE_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Sentinel (checksum-verified)
+        run: |
+          curl -fsSLo sentinel.zip "https://releases.hashicorp.com/sentinel/${SENTINEL_VERSION}/sentinel_${SENTINEL_VERSION}_linux_amd64.zip"
+          echo "${SENTINEL_SHA256}  sentinel.zip" | sha256sum -c -
+          unzip -q sentinel.zip -d "$HOME/bin" && rm sentinel.zip
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - name: Upload policies (skipped until the TFE_TOKEN secret is configured)
+        shell: pwsh
+        run: |
+          if (-not $env:TFE_TOKEN) {
+            Write-Host "::notice::TFE_TOKEN secret not set - policy deployment skipped. Run scripts/upload-policies.ps1 locally, or add the secret."
+            exit 0
+          }
+          ./scripts/upload-policies.ps1
