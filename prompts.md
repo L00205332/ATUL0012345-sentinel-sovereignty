@@ -281,6 +281,18 @@ The first parse failed on an inline `if` expression, which Sentinel doesn't have
 
 Documented the tfplan method and the CI design in README §5.
 
+### Prompt 34 (2026-11-12)
+> done, PR merged and run discarded, let's draft section 7
+
+**What the AI did:** Drafted README §7, the five discussion points from the brief, from the project's own findings and evidence, replacing the TODOs and collected notes:
+- **7.1 Effectiveness:** preventive with a zero non-compliance window, versioned and testable rules covering more than regions; blind outside Terraform; advisory looks green; needs SCP plus continuous detection.
+- **7.2 Region-based residency limits:** region isn't jurisdiction (CLOUD Act); manual copies; key-control loss; global services; region-less flows such as S3 ARNs and telemetry; reliance on tags; unknown values.
+- **7.3 Supply chain:** IaC runs with high privilege; a layer table (lock file, policy, pinned CI, least privilege); modules not in the lock file; "latest" AMI; what Sentinel can't verify.
+- **7.4 Plan-time limits:** nine observed limits (drift, unknown values, attributes not consequences, mocks vs platform floats, the merge gate, advisory visibility, module internals, destroy handling, language pitfalls).
+- **7.5 Maintenance:** provider, platform and organisational change, deployment drift, refreshing real mocks, parameters, "treat policies as a product".
+
+Marked it with an HTML comment as an AI-assisted draft for the student to review and personalise.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->

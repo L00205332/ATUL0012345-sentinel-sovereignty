@@ -716,47 +716,82 @@ A weakened policy can't pass `sentinel test`, and `upload-policies.ps1` refuses 
 
 ## 7. Decision justification
 
+<!-- DRAFT prepared with AI assistance from the project's findings (see prompts.md). Review, challenge and rewrite in your own words before submission. -->
+
+The arguments below are based on what was actually observed in this project: seven live scenarios (§6.3–6.9), 57 unit tests, mutation tests, and three platform limits found the hard way.
+
 ### 7.1 Effectiveness of Policy-as-Code for digital sovereignty
-_TODO_
+
+**Assessment: highly effective for changes that go through the pipeline; no protection outside it.**
+
+What worked:
+- **Prevention, not detection.** Every non-compliant change in this project was stopped *before* anything was created: a backup copy to `us-east-1` (PR #9), an unencrypted volume (PR #12), IMDSv1 (PR #13) and an unpinned module (PR #21). Each was rejected at plan time, the run ended *Errored*, and no AWS API call was made. Compared with a periodic audit or a manual review, the window of non-compliance is **zero**.
+- **The rules are explicit, versioned and testable.** "Ireland for primary data, Frankfurt for encrypted backups only, nothing outside the EU" is written once in `sovereignty.sentinel`, reviewed in a PR and tested by 12 cases, two of them real plans. An auditor can read the rule and see when it changed. A wiki page or a checklist can't offer that.
+- **Consistent and fast.** The same policy evaluates every run in about a second, and the message is precise: `FAIL resources_in_approved_regions: aws_ebs_snapshot_copy.data_dr is in us-east-1`. The developer learns *what* and *where* in the PR itself.
+- **It covers what region lists alone miss.** Sovereignty isn't only "which region". The policy also restricts what the DR region may hold (backups only), keeps sensitive data's primary copy in Ireland, checks replication targets (DLM, AWS Backup) and blocks foreign accounts from assuming roles (administrative access).
+
+Where it falls short:
+- **It governs Terraform, not the account.** The manual `us-east-1` copy (scenario 6) passed every policy (*2 of 2 passed*), because it never appeared in a plan. Only the out-of-band audit caught it.
+- **A policy is only as good as its enforcement level and the platform limits.** On HCP Free only one mandatory policy is allowed, so the controls had to be bundled (§4.4). An advisory policy shows a **green** GitHub check (scenario 5), which a reviewer can easily misread as "compliant".
+
+**Conclusion:** Policy-as-Code is the right *first* layer: cheap, preventive and auditable. Sovereignty needs **defence in depth** around it: the IAM region restriction on the pipeline (already in place), an organisation-level guardrail for every identity (an AWS Organizations **SCP** denying non-EU regions), and continuous detection (AWS Config / CloudTrail alerts instead of a manually run audit).
 
 ### 7.2 Limitations of region-based data residency controls
-_TODO_
 
-Points identified so far:
-- A region check only sees what Terraform deploys. A manual CLI/console copy to `us-east-1` bypasses it (drift demo, see 4.1).
-- The EU region is still operated by a US-headquartered provider (US CLOUD Act exposure).
-- Global services (IAM, Route 53, CloudFront) have no region, so a region rule can only exempt them, not constrain them. CloudFront in particular caches content in edge locations worldwide.
-- Some replication targets carry no region at all: an S3 replication destination is a bucket ARN (`arn:aws:s3:::bucket`) with no region, so the policy cannot judge it from the plan.
-- Region rules in Sentinel only cover changes made through Terraform. A manual CLI copy to `us-east-1` passed every policy and was found only by the out-of-band audit (scenario 6). Copies made out of band also leave the organisation's key control.
-- A tag (`data_classification`) only protects data if it's applied. Untagged sensitive data is only covered by the general region rule.
+A region code is a proxy for jurisdiction, and the proxy leaks in several places:
+
+1. **Region is not jurisdiction.** `eu-west-1` keeps the data *physically* in Ireland, but the operator is a US-headquartered provider. Under the US CLOUD Act, US authorities can compel such providers to disclose data regardless of where it's stored. A region rule can't express "free from foreign legal reach". That needs contractual, organisational or technical measures such as customer-held keys, or a sovereign/EU-operated cloud.
+2. **Only what Terraform deploys is checked.** Copies made by hand, by scripts or by services configured outside Terraform aren't seen (scenario 6). **Key control is lost along with residency:** the manual copy was encrypted with AWS's default key in `us-east-1`, not the organisation's Irish customer-managed key.
+3. **Global services have no region.** IAM, Route 53 and CloudFront can only be **exempted** (`param global_type_prefixes`), not constrained. CloudFront caches content at edge locations worldwide.
+4. **Some data flows don't carry a region at all.** An S3 replication destination is a bucket ARN (`arn:aws:s3:::bucket`) with no region, so the plan alone can't prove where the data goes. Logs, metrics, support cases and provider telemetry can also leave the region without any resource being declared.
+5. **Classification depends on tagging.** `sensitive_data_resident` protects data tagged `data_classification = sensitive`. Untagged sensitive data is only covered by the general region rule, and a tag is only as reliable as the people and processes that apply it.
+6. **Unknown values.** If a region were only known after apply, the policy can't prove residency. It fails safe (`fail-unknown-region`), which is correct but can block legitimate designs.
+
+**What would strengthen it:** an SCP region guardrail for all identities; customer-managed keys whose policies only allow principals in the organisation; mandatory classification tags enforced by policy; continuous detection of off-region resources; and, where the legal reach of the operator matters, contractual sovereignty controls or an EU-operated provider.
 
 ### 7.3 Importance of supply chain integrity
-_TODO_
 
-Points identified so far:
-- **Two layers, each covering what the other can't.** The lock file pins provider *bytes* (versions plus checksums, verified with HashiCorp's signature); Sentinel pins *intent* (which sources, constraints and module versions may appear in code at all), so loosening them in a PR is blocked.
-- **Modules are the weak point.** They aren't in `.terraform.lock.hcl`, so an exact version in the code is the only thing that fixes which module code runs, and `modules_pinned` enforces that. A trusted namespace still doesn't guarantee trusted content.
-- "Latest" is an unpinned dependency. The AMI taken from the *latest Amazon Linux 2023* parameter changed on its own and turned a one-line resize into a replacement of the instance and its sensitive data volume (scenario 5). Pinning applies to images as much as to providers and modules.
+Infrastructure code is executed with **high privileges**: the HCP IAM user can create networks, instances, keys and roles. Whoever controls the code that Terraform runs controls the account. The supply chain is therefore part of the security perimeter. A sovereignty policy is worthless if a compromised provider or module can exfiltrate data or rewrite resources.
+
+This project addressed it in **layers that cover each other's gaps:**
+
+| Layer | Protects | Evidence |
+|---|---|---|
+| `.terraform.lock.hcl` + HashiCorp GPG signature | the provider **bytes**: exact version `6.72.0` and SHA-256 checksums for Linux (HCP, CI) and Windows | `init` reports "signed by HashiCorp"; CI re-verifies on every PR |
+| `supply_chain.sentinel` | the **intent**: which sources, constraints and module versions may appear in code at all, so loosening them in a PR is blocked | PR #21 blocked on `modules_pinned`; 13 tests, 2 mutations caught |
+| Pinned CI | the pipeline itself: actions pinned to commit SHAs, the Sentinel binary checked against a hard-coded SHA-256 | `sentinel.zip: OK` in the CI log |
+| Least-privilege, region-restricted pipeline identity | the **blast radius** if anything upstream is compromised | `iam/hcp-terraform-policy.json` |
+
+Lessons from the project:
+- **Modules are the weak point.** They aren't recorded in the lock file, so a range such as `~> 6.0` silently pulls new code on the next `init`. An exact pin in the code, enforced by `modules_pinned`, is the only control. A trusted namespace still doesn't guarantee trusted content.
+- **Dependencies hide in places we don't call dependencies.** The AMI taken from AWS's *"latest Amazon Linux 2023"* parameter changed without any code change, and turned a harmless resize into a plan that **replaces the sensitive data volume** (scenario 5). Pinning applies to images as much as to providers and modules.
+- **Sentinel can't verify everything** (§4.2 table): binary integrity, a module's internal requirements (the VPC module's own `>= 5.79.0` is invisible in `tfconfig/v2`), a compromised maintainer or registry, or a compromise of the repository, CI or HCP itself. Those need checksums, code review of module versions, branch protection and least-privilege tokens.
 
 ### 7.4 Limitations of Sentinel and plan-time enforcement
-_TODO_
 
-Points identified so far:
-- Values computed during apply (e.g. a CIDR taken from another resource) are unknown at plan time, so a policy can only partially judge them (see network decision 4).
-- Sentinel cannot see changes made outside Terraform (drift).
-- Policies judge each resource's **attributes**, not the **consequences** of a plan. No policy flagged that PR #17's plan would destroy and recreate the sensitive data volume (scenario 5). Protecting data from replacement needs its own rule on `change.actions`.
-- **Mocks are not the platform.** Downloaded mocks write plan numbers as ints, but HCP evaluates them as floats. A type check that passed 40 local tests failed every HCP run (PR #13). Policies need at least one live check against the real platform, and type checks should be written defensively.
-- A policy check only gates the **run**. On its own it doesn't stop a non-compliant change being **merged** to `main` (seen on PR #12). Branch protection, which requires the HCP check before merging, is needed to make the PR gate binding.
-- Some security-relevant values are unknown until apply (e.g. a snapshot's `encrypted`, inherited from its volume; any `kms_key_id` that references a key created in the same run). Policies have to check the place where the value *is* known, which takes knowledge of each resource type.
-- Sentinel sees only the configuration we wrote: a module's internal provider requirements and nested dependencies don't appear in `tfconfig/v2`.
-- Policies also run on **destroy** plans. A policy must not block the removal of non-compliant resources, so the policies only evaluate resources being created or updated.
+Plan-time enforcement has a fundamental boundary: **it judges a proposed change, not the real world.** Within that boundary, this project found concrete limits:
+
+1. **No visibility outside Terraform (drift).** The manual off-region copy passed every policy, and a refresh-only run showed `+0 ~0 −0` (scenario 6).
+2. **Unknown-until-apply values.** A snapshot's `encrypted` and any `kms_key_id` referencing a key created in the same run are *unknown* in the plan, so the key check had to read `tfconfig/v2` instead. Writing correct policies needs detailed knowledge of each resource type's plan representation.
+3. **Attributes, not consequences.** No policy flagged that PR #17's plan would **destroy and recreate the sensitive data volume**. The policies check *what* a resource looks like, not *what happens to existing data*. That needs a dedicated rule on `change.actions` (e.g. block `delete` of `data_classification = sensitive` resources).
+4. **Mocks are not the platform.** Downloaded mocks store plan numbers as ints, but HCP evaluates them as floats. A type check that passed 40 local tests failed **every** HCP run, compliant ones included (PR #13). Without the live test, this would have blocked the next legitimate deployment. Unit tests are necessary but not sufficient.
+5. **The policy gates the run, not the merge.** GitHub still offered "Merge pull request" on a red check (PR #12), so non-compliant code could still reach `main`. Branch protection that requires the HCP and CI checks is needed to make the PR gate binding.
+6. **Advisory results are easy to miss.** An advisory failure leaves the GitHub check **green** (scenario 5).
+7. **Visibility into modules is limited.** `tfconfig/v2` shows our module calls, not the module's own requirements.
+8. **Destroys must not be blocked.** Policies also run on destroy plans, so they deliberately ignore deletions. Otherwise removing a non-compliant resource would be impossible. That same choice is why limitation 3 exists.
+9. **Language pitfalls.** `and` short-circuits, so only the first failing rule was reported until `main = all [...]` was used; `rule` is a reserved word; `strings.contains` doesn't exist. Each was found by tests, which shows policies need the same engineering discipline as application code.
 
 ### 7.5 Maintaining policies as cloud environments evolve
-_TODO_
 
-Points identified so far:
-- Platform tiers constrain the design. HCP Free allows one policy set, 0 versioned policy sets and **one mandatory policy**. That forced API deployment, policy bundling and a single enforcement level for all blocking controls. Each limit was only discovered when an API call failed (HTTP 403), which shows that platform limits are part of the policy design too.
-- New AWS resource types or arguments (e.g. the per-resource `region` in provider v6) can open new paths around a policy, or make a policy simpler. Policies need reviewing whenever provider major versions change.
+Policies encode assumptions about providers, platforms and the organisation, and all three change:
+
+- **Providers change the plan.** AWS provider v6 added a per-resource `region` argument. That made the sovereignty policy simpler, since `change.after.region` is populated for every regional resource, but a policy written for v5 would have missed resources created this way. New resource types (e.g. a new replication service) create new paths that no rule covers yet. **Every provider major upgrade needs a policy review.** `provider_versions_approved` forces that upgrade through a deliberate change, and the real-plan tests make it testable.
+- **Platforms change the design.** HCP Free allowed one policy set, **no** versioned policy sets and **one** mandatory policy. Each limit appeared only as an HTTP 403 and forced a redesign: API deployment, then bundling, then a single enforcement level. A move to a paid tier would let the same `sentinel.hcl` deploy each policy separately with its own level.
+- **Policy deployment can drift from the code.** With no VCS-linked policy sets, HCP enforces whatever was last uploaded. Mitigations: the git commit recorded in each policy's description, and the CI `deploy-policies` job on `main`.
+- **Tests must evolve with the policies.** Hand-written mocks capture what we *expect* plans to look like. Real mocks capture what they *are*. Refreshing real mocks after provider or Terraform upgrades, and keeping mutation tests, keeps the suite honest (the float bug in PR #13 is the example).
+- **The organisation changes too.** New regions may be approved (e.g. a second EU DR region), new data classifications introduced, or exceptions granted. Keeping those values in **parameters** (`approved_regions`, `sc_approved_providers`, `it_approved_types`) makes such changes small, reviewable PRs instead of rewrites.
+
+**Recommendation:** treat policies as a product. Give them an owner and versioned releases with real-plan regression tests, review them on every provider, Terraform or platform change, and add continuous detection for everything plan-time policy can't see.
 
 ## 8. Declaration of AI tool usage
 
