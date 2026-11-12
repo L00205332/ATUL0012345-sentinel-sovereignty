@@ -271,6 +271,16 @@ The first parse failed on an inline `if` expression, which Sentinel doesn't have
 
 **What the AI did:** Confirmed the result: exactly one violation, `modules_pinned`; the plan succeeded and only the policy check failed, which shows "deployable" vs "allowed"; the +5/−5 is the unrelated AMI replacement. Added 4 screenshots and README scenario 7 (§6.9), renumbered the following subsections, and updated the summary table and the evidence index. Verified 39 embedded images and all anchors.
 
+### Prompt 33 (2026-11-12)
+> done, PR merged, let's do the tfplan file and if we can also add other points along and commit along into 1 PR that should be better and faster
+
+**What the AI did:** Grouped three deliverables into one change:
+- **tfplan:** wrote `scripts/make-tfplan.ps1`, which plans the same code in a temporary copy where a Terraform override file swaps the HCP `cloud` block for an empty local state. This produced `terraform/tfplan` and `tfplan.txt` ("23 to add"). Scanned the text and the binary's zip contents: no account ID, keys or public IPs, EU regions only.
+- **CI:** wrote `.github/workflows/terraform-checks.yml` with three jobs: terraform fmt/validate; Sentinel install (SHA-256 verified), fmt, test and bundle; and policy deployment on `main` with an optional `TFE_TOKEN` secret, closing the manual-upload gap. Actions are pinned to commit SHAs looked up via the GitHub API, and the Sentinel checksum comes from HashiCorp's SHA256SUMS. Made `build-bundle.ps1` paths cross-platform (Windows `\` paths would break on Linux runners) and guarded the `%APPDATA%` token fallback.
+- **Tests index:** wrote `tests/test-scenarios.md` with the five test layers, the 7 live scenarios mapped to their replay tests and README sections, and per-policy coverage (17 rules, 57 cases, 8 real-plan cases, counts verified).
+
+Documented the tfplan method and the CI design in README §5.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->

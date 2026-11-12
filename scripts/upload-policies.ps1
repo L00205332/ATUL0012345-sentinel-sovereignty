@@ -86,6 +86,7 @@ if ($DryRun) { Write-Host "Dry run: no changes made in HCP."; exit 0 }
 # --- HCP token ------------------------------------------------------------------------------
 $token = $env:TFE_TOKEN
 if (-not $token) {
+    if (-not $env:APPDATA) { throw "No HCP token: set TFE_TOKEN (in CI: the TFE_TOKEN repository secret)." }
     $credFile = Join-Path $env:APPDATA "terraform.d\credentials.tfrc.json"
     if (-not (Test-Path $credFile)) { throw "No HCP token: run 'terraform login' or set TFE_TOKEN." }
     $token = (Get-Content $credFile -Raw | ConvertFrom-Json).credentials."app.terraform.io".token

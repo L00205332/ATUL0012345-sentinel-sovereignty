@@ -38,7 +38,7 @@ $sentinel  = Join-Path (Split-Path $PSScriptRoot -Parent) "sentinel"
 $buildDir  = Join-Path $sentinel "build"
 $fileStem  = $BundleName -replace '-', '_'
 $bundleSrc = Join-Path $buildDir "$fileStem.sentinel"
-$testDir   = Join-Path $buildDir "test\$fileStem"
+$testDir   = Join-Path $buildDir "test/$fileStem"   # forward slashes work on Windows and Linux (CI)
 
 # --- 1. Policies from sentinel.hcl ------------------------------------------------
 $hcl = Get-Content (Join-Path $sentinel "sentinel.hcl") -Raw
@@ -180,8 +180,8 @@ foreach ($i in $needed) {
 }
 
 foreach ($p in $mandatory) {
-    $srcTests = Join-Path $sentinel "test\$($p.Name)"
-    if (-not (Test-Path $srcTests)) { throw "$($p.Name) has no tests in test\$($p.Name): it cannot be bundled untested." }
+    $srcTests = Join-Path $sentinel "test/$($p.Name)"
+    if (-not (Test-Path $srcTests)) { throw "$($p.Name) has no tests in test/$($p.Name): it cannot be bundled untested." }
     foreach ($t in Get-ChildItem $srcTests -Filter *.hcl) {
         $text = Get-Content $t.FullName -Raw
         # Mock paths are relative to the test file: point them back at the original folder.
