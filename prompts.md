@@ -293,6 +293,17 @@ Documented the tfplan method and the CI design in README §5.
 
 Marked it with an HTML comment as an AI-assisted draft for the student to review and personalise.
 
+### Prompt 35 (2026-11-12)
+> done, PR merged, let's draft the technical report one-page technical report. It will condense §7 into limitations and recommendations that fit on one page, as documentation/technical-report/technical-report.md
+
+**What the AI did:** Drafted `documentation/technical-report/technical-report.md` (about 610 words), marked as an AI-assisted draft:
+- a one-paragraph outcome
+- a table of 7 limitations, each linked to its evidence (scenarios, PRs, README sections)
+- 9 recommendations (SCP, continuous detection, branch protection, protecting sensitive data from destructive plans, OIDC, supply chain, real-platform testing, policy ownership, jurisdiction beyond regions)
+- a conclusion
+
+To verify the one-page limit, wrote a small Markdown-to-HTML converter and printed it to an A4 PDF with headless Chrome: 1 page, checked visually via an A4 screenshot after fixing an encoding problem in the preview step. Added `build-report.ps1` to the repo, which rebuilds the PDF and fails if it exceeds one page. Linked the report from the README and corrected a stale test count in the evidence index.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->

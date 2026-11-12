@@ -14,7 +14,7 @@ All test results and screenshots are presented in the main README, so there is a
 | [6.7 Scenario 5: Advisory `t3.large`](../../README.md#67-scenario-5-advisory-t3large) | Warn, not blocked; unpinned-AMI replacement finding | 28–31 |
 | [6.8 Scenario 6: Drift](../../README.md#68-scenario-6-drift-manual-off-region-copy) | Manual off-region copy: invisible to Terraform/Sentinel, caught by the audit, remediated | 33–35 |
 | [6.9 Scenario 7: Unpinned module (PR #21)](../../README.md#69-scenario-7-unpinned-module-pr-21-blocked) | Blocked by `modules_pinned`; plan OK, policy failed | 36–39 |
-| [6.10 Local mock tests](../../README.md#610-local-mock-tests-sentinel-test) | All 44 `sentinel test` cases, bundle tests, mutation tests | — |
+| [6.10 Local mock tests](../../README.md#610-local-mock-tests-sentinel-test) | All 57 `sentinel test` cases, bundle tests, mutation tests | — |
 | [6.11 What the real mocks showed](../../README.md#611-what-the-real-mocks-showed) | Findings from real HCP plan data; mock redaction | — |
 
 The screenshots are numbered in the order they appear in the README. In audit screenshots 12 and 16 the AWS account ID is redacted; screenshots showing IAM access key IDs were not included.

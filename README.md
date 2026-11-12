@@ -30,7 +30,7 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 │   └── terraform-checks.yml           ✅ CI: fmt, validate, sentinel test, bundle tests; deploys policies on main
 ├── documentation/
 │   ├── evidence/                      ✅ 27 screenshots (shown in README §6) + test-results.md index
-│   └── technical-report/              ⏳ ≤ 1 page limitations & recommendations
+│   └── technical-report/              ✅ technical-report.md + .pdf (1 A4 page) + build-report.ps1
 ├── iam/
 │   └── hcp-terraform-policy.json      ✅ least-privilege policy for the HCP Terraform IAM user
 ├── scripts/
@@ -792,6 +792,14 @@ Policies encode assumptions about providers, platforms and the organisation, and
 - **The organisation changes too.** New regions may be approved (e.g. a second EU DR region), new data classifications introduced, or exceptions granted. Keeping those values in **parameters** (`approved_regions`, `sc_approved_providers`, `it_approved_types`) makes such changes small, reviewable PRs instead of rewrites.
 
 **Recommendation:** treat policies as a product. Give them an owner and versioned releases with real-plan regression tests, review them on every provider, Terraform or platform change, and add continuous detection for everything plan-time policy can't see.
+
+### Technical report
+
+The one-page technical report condenses this section into **limitations found** and **recommendations**: [`documentation/technical-report/technical-report.pdf`](documentation/technical-report/technical-report.pdf) (source: [`technical-report.md`](documentation/technical-report/technical-report.md)). After editing the Markdown, rebuild the PDF and check it still fits one A4 page with:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\documentation	echnical-reportuild-report.ps1
+```
 
 ## 8. Declaration of AI tool usage
 
