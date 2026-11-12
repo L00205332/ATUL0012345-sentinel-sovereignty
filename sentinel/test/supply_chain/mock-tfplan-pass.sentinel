@@ -1,0 +1,44 @@
+# Compliant: hashicorp/aws ~> 6.0, registry module pinned to 6.0.0 and '= 5.1.2', a local module without a version, Terraform 1.17.1.
+terraform_version = "1.17.1"
+
+resource_changes = {
+	"aws_instance.app": {
+		"address":       "aws_instance.app",
+		"type":          "aws_instance",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after":         {},
+			"after_unknown": {},
+		},
+	},
+	"module.vpc.aws_vpc.this[0]": {
+		"address":       "module.vpc.aws_vpc.this[0]",
+		"type":          "aws_vpc",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after":         {},
+			"after_unknown": {},
+		},
+	},
+	"data.aws_ssm_parameter.ami": {
+		"address":       "data.aws_ssm_parameter.ami",
+		"type":          "aws_ssm_parameter",
+		"mode":          "data",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"read",
+			],
+			"after":         {},
+			"after_unknown": {},
+		},
+	},
+}

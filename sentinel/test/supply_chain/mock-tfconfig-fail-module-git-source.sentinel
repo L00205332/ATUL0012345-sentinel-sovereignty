@@ -1,0 +1,27 @@
+# Configuration for: Non-compliant: module from a git repository (not the trusted registry namespace).
+providers = {
+	"aws": {
+		"alias":               "",
+		"config":              {},
+		"full_name":           "registry.terraform.io/hashicorp/aws",
+		"module_address":      "",
+		"name":                "aws",
+		"provider_config_key": "aws",
+		"version_constraint":  "~> 6.0",
+	},
+}
+
+module_calls = {
+	"vpc": {
+		"config":             {},
+		"count":              {},
+		"depends_on":         [],
+		"for_each":           {},
+		"module_address":     "",
+		"name":               "vpc",
+		"source":             "git::https://github.com/example/terraform-aws-vpc.git?ref=main",
+		"version_constraint": "",
+	},
+}
+
+resources = {}
