@@ -1,5 +1,3 @@
-<!-- DRAFT prepared with AI assistance from the project's findings (see prompts.md). Review and rewrite in your own words before submission. -->
-
 # Technical Report: Policy-as-Code for Digital Sovereignty – Limitations and Recommendations
 
 **ATUL0012345** · Student L00205332 · HCP Terraform (Free) + Sentinel, AWS `eu-west-1` / `eu-central-1` · Repository: `L00205332/ATUL0012345-sentinel-sovereignty` · AI use declared in `prompts.md`

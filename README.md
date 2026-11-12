@@ -4,7 +4,9 @@
 > Student: L00205332 · Organisation: ATUL0012345
 > Repository: https://github.com/L00205332/ATUL0012345-sentinel-sovereignty
 
-**Status:** 🚧 Work in progress. Sections marked _TODO_ get filled in as each part is designed, built and tested.
+**Status:** ✅ **Complete.** All deliverables are in this repository: Terraform code with `tfplan` and lock file, six Sentinel policies with 57 tests, evidence from seven live scenarios (§6), the decision justification (§7) and the one-page [technical report](documentation/technical-report/technical-report.pdf).
+
+> 🤖 **AI tool usage is declared.** This project was built with Claude Code (Claude Opus 5.5). **Every prompt used is logged verbatim in [`prompts.md`](prompts.md)**, with a short note on what the AI did for each one. The declaration and the student's own contribution are in [§8](#8-declaration-of-ai-tool-usage).
 
 ---
 
@@ -20,7 +22,6 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 
 ## 2. Repository structure
 
-✅ = built · ⏳ = planned
 
 ```
 .
@@ -138,7 +139,7 @@ Design decisions:
 
 **How jurisdictional restrictions contribute to sovereignty:** keeping compute, data, backups and keys inside Irish and EU regions keeps the data under EU law (GDPR, the NIS2 / Digital Security & Resilience agenda highlighted for Ireland's EU presidency) and Irish regulatory oversight. Disaster recovery stays inside the same legal area (Frankfurt), and customer-managed keys held per region mean the organisation, not the provider, decides who can decrypt each copy. Restricting role trust to AWS services keeps administrative control inside the organisation's own account.
 
-_TODO: discussion of what region rules cannot guarantee (see 7.2)._
+What region rules cannot guarantee (jurisdiction, out-of-band copies, global services, region-less data flows) is discussed in [7.2](#72-limitations-of-region-based-data-residency-controls).
 
 ### 4.2 IaC supply chain security
 
@@ -716,8 +717,6 @@ A weakened policy can't pass `sentinel test`, and `upload-policies.ps1` refuses 
 
 ## 7. Decision justification
 
-<!-- DRAFT prepared with AI assistance from the project's findings (see prompts.md). Review, challenge and rewrite in your own words before submission. -->
-
 The arguments below are based on what was actually observed in this project: seven live scenarios (§6.3–6.9), 57 unit tests, mutation tests, and three platform limits found the hard way.
 
 ### 7.1 Effectiveness of Policy-as-Code for digital sovereignty
@@ -809,12 +808,16 @@ As the brief requires, any use of LLM tools is declared here.
 |------|--------|
 | Tool | Claude Code (Anthropic), desktop app |
 | Model | Claude Opus 5.5 (`claude-opus-5-5`) |
-| Used for | Reviewing the brief, explaining Terraform/Sentinel concepts, writing the code (Sentinel policies, mocks, tests, Terraform, scripts, CI) and keeping this README up to date |
-| Prompts | Full prompt log in [`prompts.md`](prompts.md) |
+| Used for | Reviewing the brief, explaining Terraform/Sentinel concepts, writing the code (Sentinel policies, mocks, tests, Terraform, scripts, CI), assembling the evidence, drafting §7 and the technical report from the project's findings, and keeping this README up to date |
+| Prompts | **Every prompt, verbatim, in [`prompts.md`](prompts.md)**, each with a note on what the AI did |
 
 **My own contribution:** I made the design decisions (region model with Frankfurt as EU DR and `us-east-1` as the denied test region, real AWS resources with a cleanup script per stack, static HCP credentials as an accepted trade-off, PR-based testing), walked through the assignment step by step, read and reviewed all generated code, ran the tests, and performed all git operations, PRs and merges myself.
 
-_TODO: add the analysis in section 7 and the technical report._
+Further decisions and work of my own:
+- **Chose how to work around each HCP Free limit:** API-deployed policies, and **bundling** all mandatory policies into one so that every control still blocks, rather than downgrading them to advisory.
+- **Designed and ran every live test myself:** seven scenarios via PRs and the AWS CLI. I **spotted the evidence gaps**: missing screenshots in the README, the first-run hop-limit result, the AMI replacement.
+- **Took risk decisions deliberately:** accepted the unpinned-AMI replacement as a known risk for a disposable stack, and kept the real mocks after weighing their value.
+- **Reviewed and approved** the drafted analysis (§7) and the technical report, and verified the evidence before every merge.
 
 ## 9. References
 
