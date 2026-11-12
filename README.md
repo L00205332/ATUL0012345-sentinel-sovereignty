@@ -28,7 +28,7 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 ├── prompts.md                         ✅ LLM usage log (declared as required by the brief)
 ├── .github/workflows/                 ⏳ CI checks (fmt / validate / sentinel test)
 ├── documentation/
-│   ├── evidence/                      ⏳ screenshots + test-results.md
+│   ├── evidence/                      ✅ 27 screenshots + test-results.md (scenario-by-scenario evidence)
 │   └── technical-report/              ⏳ ≤ 1 page limitations & recommendations
 ├── iam/
 │   └── hcp-terraform-policy.json      ✅ least-privilege policy for the HCP Terraform IAM user
@@ -326,6 +326,17 @@ _TODO: generating `tfplan`._
 
 ## 6. Evidence
 
+📸 **Screenshots and a scenario-by-scenario walkthrough:** [`documentation/evidence/test-results.md`](documentation/evidence/test-results.md)
+
+| Scenario | Result | Screenshots |
+|---|---|---|
+| Compliant baseline: plan, policy check, apply, audit before/after | ✅ passed and applied | [12–16](documentation/evidence/test-results.md#scenario-1-compliant-baseline-applied) |
+| PR #9: DR copy to `us-east-1` | ⛔ blocked (sovereignty) | [17–19](documentation/evidence/test-results.md#scenario-2-sovereignty-dr-copy-outside-the-eu-pr-9-blocked) |
+| PR #12: unencrypted volume | ⛔ blocked (encryption) | [20–22](documentation/evidence/test-results.md#scenario-3-unencrypted-ebs-volume-pr-12-blocked) |
+| PR #13: IMDSv1 | ⛔ blocked (metadata), before and after the float-bug fix | [23–27](documentation/evidence/test-results.md#scenario-4-imdsv1-allowed-pr-13-blocked-and-a-policy-bug-found) |
+| HCP Free limits, integration, policy deployment | — | [01–11](documentation/evidence/test-results.md#platform-limits-found-hcp-terraform-free) |
+
+
 ### Mock-based test results
 
 | Policy | Test case | Scenario | Expected `main` | Result |
@@ -389,7 +400,8 @@ _TODO: generating `tfplan`._
 
 | Speculative plan `run-u9HrW9R8yiofYKmm` for **PR #12** "TEST - non-compliant: unencrypted EBS volume (do not merge)" | GitHub PR, `aws_ebs_volume.data` `encrypted = false` | 4 to add, 4 to destroy (volume replaced, plus its attachment, snapshot and DR copy) | **1 of 2 passed**: `instance_type` (advisory) ✅, `atul0012345-guardrails` (hard-mandatory) ❌ `FAIL ebs_encrypted: aws_ebs_volume.data is not encrypted` | ⛔ **Errored**; PR check red; closed without merging |
 
-| Speculative plan for **PR #13** "TEST - non-compliant: IMDSv1 allowed (do not merge)" | GitHub PR, `http_tokens = "optional"` | 0 to add, **1 to change** (`aws_instance.app` updated in place), 0 to destroy | 1 of 2 passed: `instance_type` ✅, guardrails ❌ `FAIL imdsv2_required: aws_instance.app allows IMDSv1 (http_tokens = optional)` **plus a false `FAIL imds_hop_limit_restricted: … hop_limit = 1, maximum allowed is 1`** | ⛔ Errored; PR check red. Exposed a policy bug (below), fixed and re-run |
+| Speculative plan for **PR #13** "TEST - non-compliant: IMDSv1 allowed (do not merge)" | GitHub PR, `http_tokens = "optional"` | 0 to add, **1 to change** (`aws_instance.app` updated in place), 0 to destroy | 1 of 2 passed: `instance_type` ✅, guardrails ❌ `FAIL imdsv2_required: aws_instance.app allows IMDSv1 (http_tokens = optional)` **plus a false `FAIL imds_hop_limit_restricted: … hop_limit = 1, maximum allowed is 1`** | ⛔ Errored; PR check red. Exposed a policy bug (below), fixed in PR #14 |
+| Re-run `run-Am7V2uCBV3XFgcYm` for **PR #13** after the fix | empty commit on the PR branch | 1 to change (`aws_instance.app`) | 1 of 2 passed: guardrails ❌ **only** `FAIL imdsv2_required: aws_instance.app allows IMDSv1 (http_tokens = optional)`, with no hop-limit line | ⛔ Errored; still blocked, now for the right reason only |
 
 **Bug found by PR #13: local tests passed, HCP disagreed.** The hop-limit rule required the value's type to be `int`. In HCP, plan numbers arrive as **floats** (`1.0`), but downloaded mocks write them as ints (`1`), so all 40 local tests passed while every HCP run failed the rule, including compliant ones. Fixes:
 - The rule now accepts `int` or `float`.
@@ -435,7 +447,7 @@ This confirms the real outcome matches the design: compute and data in Ireland, 
   - The **PR #9** mocks were taken while the stack was running, so the plan and state held the real **AWS account ID** (330 occurrences inside ARNs and `owner_id`) and the instance's **public IP/DNS**. These were replaced with AWS documentation values (`111122223333`, `203.0.113.10`) before committing. No policy reads them, and the real-plan test gives the same result as HCP after redaction.
   - Lesson: **mocks from runs against existing infrastructure are effectively a copy of the state**, and must be treated as sensitive data before publishing.
 
-_TODO: screenshots in `documentation/evidence/`, non-compliant runs._
+_TODO: test C (advisory `t3.large`) and the drift demo: see `documentation/evidence/test-results.md`, scenarios 5–6._
 
 ## 7. Decision justification
 

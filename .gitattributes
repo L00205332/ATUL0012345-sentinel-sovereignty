@@ -5,5 +5,8 @@
 
 *.png binary
 *.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
 *.pdf binary
 tfplan binary

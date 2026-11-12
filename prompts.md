@@ -178,6 +178,22 @@ Spotted that GitHub still allowed merging a PR with a failed check, and explaine
 
 **What the AI did:** Spotted that the second failure is a false positive: hop limit 1 is allowed. Diagnosed the cause as HCP passing plan numbers as floats while the downloaded mocks store ints, so the `type_of(...) is "int"` check passed all local tests but failed every HCP run, including compliant ones. Fixed it to accept int or float. Added float regression tests for metadata and for network, which compares ports; network already handled floats. Confirmed that reverting the fix reproduces HCP's exact message. 44/44 tests. Documented the bug, the fix and the lesson ("mocks are not the platform") in the README.
 
+### Prompt 22 (2026-11-12)
+> [screenshots: PR #13 re-run after the fix: GitHub check failed; HCP run-Am7V2uCBV3XFgcYm with 1 to change and only "FAIL imdsv2_required"]
+> check the screenshots after fixing the float number issue:
+
+**What the AI did:** Confirmed the re-run shows only the correct violation, proving that the fixed bundle is live on HCP. Recorded the re-run in the README.
+
+### Prompt 23 (2026-11-12)
+> why can't i find any evidence screenshots inside git hub readme?
+
+**What the AI did:** Explained that the screenshots had only been shared in the chat and never added to the repo, and that the README evidence section was still text-only with a TODO. Proposed building `documentation/evidence/` from the screenshots already shared: leave out the ones showing IAM access key IDs, and redact the AWS account ID.
+
+### Prompt 24 (2026-11-12)
+> yes, go ahead and build the evidence folder
+
+**What the AI did:** Copied 27 screenshots into `documentation/evidence/` with numbered names. Redacted the account ID line in the two audit screenshots using Windows' System.Drawing (checked visually), and excluded the access-key and setup-only screenshots. Wrote `documentation/evidence/test-results.md`: a summary table, the HCP Free limits, the integration, and scenarios 1–4 with their screenshots, expected vs actual results and findings, with placeholders for test C and the drift demo. Checked that every image link resolves, and linked the page from README §6.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->
