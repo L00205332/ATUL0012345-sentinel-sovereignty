@@ -28,7 +28,7 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 ├── prompts.md                         ✅ LLM usage log (declared as required by the brief)
 ├── .github/workflows/                 ⏳ CI checks (fmt / validate / sentinel test)
 ├── documentation/
-│   ├── evidence/                      ✅ 27 screenshots + test-results.md (scenario-by-scenario evidence)
+│   ├── evidence/                      ✅ 27 screenshots (shown in README §6) + test-results.md index
 │   └── technical-report/              ⏳ ≤ 1 page limitations & recommendations
 ├── iam/
 │   └── hcp-terraform-policy.json      ✅ least-privilege policy for the HCP Terraform IAM user
@@ -324,95 +324,95 @@ powershell -ExecutionPolicy Bypass -File .\scripts\audit-regions.ps1 -AwsProfile
 
 _TODO: generating `tfplan`._
 
-## 6. Evidence
+## 6. Testing and evidence
 
-📸 **Screenshots and a scenario-by-scenario walkthrough:** [`documentation/evidence/test-results.md`](documentation/evidence/test-results.md)
+Every claim in this section is backed by a screenshot in [`documentation/evidence/`](documentation/evidence/); click any image to open it at full size.
 
-| Scenario | Result | Screenshots |
-|---|---|---|
-| Compliant baseline: plan, policy check, apply, audit before/after | ✅ passed and applied | [12–16](documentation/evidence/test-results.md#scenario-1-compliant-baseline-applied) |
-| PR #9: DR copy to `us-east-1` | ⛔ blocked (sovereignty) | [17–19](documentation/evidence/test-results.md#scenario-2-sovereignty-dr-copy-outside-the-eu-pr-9-blocked) |
-| PR #12: unencrypted volume | ⛔ blocked (encryption) | [20–22](documentation/evidence/test-results.md#scenario-3-unencrypted-ebs-volume-pr-12-blocked) |
-| PR #13: IMDSv1 | ⛔ blocked (metadata), before and after the float-bug fix | [23–27](documentation/evidence/test-results.md#scenario-4-imdsv1-allowed-pr-13-blocked-and-a-policy-bug-found) |
-| HCP Free limits, integration, policy deployment | — | [01–11](documentation/evidence/test-results.md#platform-limits-found-hcp-terraform-free) |
+**Redaction:** the AWS account ID is blacked out in the two audit screenshots. Screenshots showing IAM access key IDs were not included.
 
+### 6.1 Summary
 
-### Mock-based test results
-
-| Policy | Test case | Scenario | Expected `main` | Result |
+| # | Scenario | Change | Expected | Actual |
 |---|---|---|---|---|
-| network | `pass.hcl` | SSH from VPC only, public HTTPS (v4+v6), inline SG internal-only, legacy egress-all, deleted open SSH rule | true | ✅ PASS |
-| network | `fail.hcl` | SSH from `0.0.0.0/0` | false | ✅ PASS |
-| network | `fail-ipv6.hcl` | SSH from `::/0` | false | ✅ PASS |
-| network | `fail-port-range.hcl` | TCP 0–65535 from internet | false | ✅ PASS |
-| network | `fail-all-protocols.hcl` | `ip_protocol = "-1"` from internet | false | ✅ PASS |
-| network | `fail-public-rdp.hcl` | RDP 3389 from internet (SSH rule passes, ingress rule fails) | false | ✅ PASS |
-| network | `fail-inline-sg.hcl` | SSH via inline `aws_security_group` ingress | false | ✅ PASS |
-| network | `fail-legacy-rule.hcl` | SSH on IPv6 via legacy `aws_security_group_rule` | false | ✅ PASS |
-| network | `pass-real-baseline.hcl` | **Real plan** from HCP run `run-Xz7zmhMJKXVNHwa3` (23 resources) | true | ✅ PASS |
-| sovereignty | `pass-real-baseline.hcl` | **Real plan** (23 resources): all 5 rules true | true | ✅ PASS |
-| sovereignty | `pass.hcl` | Irish compute + sensitive volume, Frankfurt snapshot copy + key, EC2-trusted IAM role, `random_id`, a data source in us-east-1, deletion of a us-east-1 copy, DLM and Backup copies to Frankfurt, vault ARN unknown at plan time | true | ✅ PASS |
-| sovereignty | `fail-offregion-snapshot-copy.hcl` | Sensitive snapshot copy + key in **us-east-1** (the planned live test) | false (regions ❌, sensitive ❌) | ✅ PASS |
-| sovereignty | `fail-real-offregion.hcl` | **Real plan** of the blocked PR #9 (DR key, alias and copy replaced in us-east-1). Produces the same 4 FAIL lines as the HCP run | false (regions ❌, sensitive ❌, others ✅) | ✅ PASS |
-| sovereignty | `fail-compute-outside-eu.hcl` | EC2 in us-east-1 | false (regions ❌) | ✅ PASS |
-| sovereignty | `fail-compute-in-dr.hcl` | EC2 in Frankfurt: in the EU, but the DR region is backups only | false (regions ✅, DR ❌) | ✅ PASS |
-| sovereignty | `fail-sensitive-primary-in-dr.hcl` | Primary sensitive volume in Frankfurt | false (DR ❌, sensitive ❌) | ✅ PASS |
-| sovereignty | `fail-dlm-cross-region.hcl` | DLM policy in Ireland copying snapshots to us-east-1 | false (replication ❌) | ✅ PASS |
-| sovereignty | `fail-backup-copy-offregion.hcl` | AWS Backup copy to a us-east-1 vault | false (replication ❌) | ✅ PASS |
-| sovereignty | `fail-unknown-region.hcl` | Region unknown until apply (fail safe) | false (regions ❌) | ✅ PASS |
-| sovereignty | `fail-external-admin-trust.hcl` | IAM role trusts another AWS account | false (trust ❌) | ✅ PASS |
-| sovereignty | `fail-public-trust.hcl` | IAM role trusts `"*"` | false (trust ❌) | ✅ PASS |
+| 0 | [Local mock tests](#69-local-mock-tests-sentinel-test) | — | all pass | ✅ **44/44** policy tests, **40/40** bundle tests |
+| 1 | [Compliant baseline](#63-scenario-1-compliant-baseline-applied) | `main` | policies pass, apply allowed | ✅ passed; 23 resources applied |
+| 2 | [Sovereignty: DR copy outside the EU (PR #9)](#64-scenario-2-dr-copy-outside-the-eu-pr-9-blocked) | `dr_region = "us-east-1"` | **blocked** | ⛔ hard failed: `resources_in_approved_regions` ×3, `sensitive_data_resident` |
+| 3 | [Unencrypted EBS volume (PR #12)](#65-scenario-3-unencrypted-ebs-volume-pr-12-blocked) | `encrypted = false` | **blocked** | ⛔ hard failed: `ebs_encrypted` |
+| 4 | [IMDSv1 allowed (PR #13)](#66-scenario-4-imdsv1-allowed-pr-13-blocked-and-a-policy-bug-found) | `http_tokens = "optional"` | **blocked** | ⛔ hard failed: `imdsv2_required` (the first run also exposed a policy bug, now fixed) |
+| 5 | [Advisory: `t3.large`](#67-scenario-5-advisory-t3large) | `instance_type = "t3.large"` | **warn, not blocked** | ⏳ pending |
+| 6 | [Drift: manual `us-east-1` copy](#68-scenario-6-drift-manual-off-region-copy) | AWS CLI, outside Terraform | Sentinel can't see it; the audit flags `DRIFT` | ⏳ pending |
 
-| encryption | `pass-real-baseline.hcl` | **Real plan + config**: volume, root disk and DR copy all encrypted with CMK references | true | ✅ PASS |
-| encryption | `pass.hcl` | CMK volume, instance root, DR copy with constant CMK ARN, launch template disk, deletion of an old unencrypted volume | true | ✅ PASS |
-| encryption | `fail-unencrypted-volume.hcl` | `encrypted = false`, no key | false (encrypted ❌, CMK ❌) | ✅ PASS |
-| encryption | `fail-aws-managed-key.hcl` | Encrypted with `alias/aws/ebs` | false (encrypted ✅, CMK ❌) | ✅ PASS |
-| encryption | `fail-default-key.hcl` | Encrypted, no `kms_key_id` (AWS default key) | false (CMK ❌) | ✅ PASS |
-| encryption | `fail-unencrypted-root.hcl` | Instance root disk not encrypted | false | ✅ PASS |
-| encryption | `fail-root-not-configured.hcl` | No `root_block_device` (fail safe) | false | ✅ PASS |
-| encryption | `fail-unencrypted-copy.hcl` | DR snapshot copy not encrypted | false | ✅ PASS |
-| encryption | `fail-launch-template-unencrypted.hcl` | Launch template disk `encrypted = "false"` | false | ✅ PASS |
-| metadata | `pass-real-baseline.hcl` | **Real plan**: `http_tokens = required`, hop limit 1 | true | ✅ PASS |
-| metadata | `pass.hcl` | IMDSv2 instance + launch template; instance with IMDS disabled | true | ✅ PASS |
-| metadata | `fail-imdsv1-optional.hcl` | `http_tokens = "optional"` | false (IMDSv2 ❌, hop ✅) | ✅ PASS |
-| metadata | `fail-no-metadata-options.hcl` | No `metadata_options` (fail safe) | false | ✅ PASS |
-| metadata | `fail-hop-limit-2.hcl` | IMDSv2 but hop limit 2 | false (IMDSv2 ✅, hop ❌) | ✅ PASS |
-| metadata | `fail-launch-template-imdsv1.hcl` | Launch template allows IMDSv1 | false | ✅ PASS |
-| metadata | `pass-float-hop.hcl` | Hop limit `1.0` (float, as HCP passes it). Regression test for the PR #13 bug | true | ✅ PASS |
-| metadata | `fail-float-hop-2.hcl` | Hop limit `2.0` (float) | false (hop ❌) | ✅ PASS |
-| network | `pass-float-ports.hcl` | Public HTTPS with ports `443.0` (float) | true | ✅ PASS |
-| network | `fail-float-ports.hcl` | SSH `22.0` and range `0.0–65535.0` from the internet (floats) | false | ✅ PASS |
-| instance_type | `pass-real-baseline.hcl` | **Real plan**: `t3.micro` | true | ✅ PASS |
-| instance_type | `pass.hcl` | `t3.micro` instance, `t3.small` template, template without type | true | ✅ PASS |
-| instance_type | `fail-t3-large.hcl` | `t3.large` (advisory) | false | ✅ PASS |
-| instance_type | `fail-unknown-type.hcl` | Type unknown at plan time (fail safe) | false | ✅ PASS |
+**How a non-compliant change is prevented:**
+1. Every change reaches `main` only through a PR. HCP runs a speculative plan for the PR and evaluates it against the policy set, and GitHub shows the result as a status check.
+2. `atul0012345-guardrails` is **hard-mandatory**: a failure can't be overridden, and the run ends *Errored*, so it can't be applied.
+3. A merge to `main` triggers a normal run, which is evaluated again before any apply, and every apply also needs manual confirmation.
+4. **Outside Sentinel:** the HCP IAM user can only call EC2/KMS in the two EU regions, so even an apply that got through would be refused by AWS in `us-east-1`. The gap: without branch protection, a failed check doesn't stop the *merge* (found in scenario 3).
 
-**Mutation tests:** with `us-east-1` added to the approved regions, 4 sovereignty tests failed; with IMDSv1 accepted, 2 metadata tests failed; with AWS-managed keys accepted, 1 encryption test failed. A weakened policy cannot pass `sentinel test`, and the upload script refuses to deploy it.
+### 6.2 Platform limits and HCP integration
 
-**Totals:** 44/44 policy tests and 40/40 bundle tests PASS.
+HCP Terraform Free imposed three limits that shaped the design (see 4.4 and 5): one policy set, no VCS-linked (versioned) policy sets, and **one mandatory policy**. That's why all mandatory policies are bundled into `atul0012345-guardrails` and deployed through the API.
 
-### HCP Terraform runs
+| One policy set | No VCS-linked policy sets |
+|---|---|
+| <a href="documentation/evidence/01-free-tier-1-policy-set.png"><img src="documentation/evidence/01-free-tier-1-policy-set.png" width="420" alt="1 policy set left"></a> | <a href="documentation/evidence/03-free-tier-no-vcs-policy-sets.png"><img src="documentation/evidence/03-free-tier-no-vcs-policy-sets.png" width="420" alt="VCS option disabled"></a> |
+| **One mandatory policy (API, HTTP 403)** | **One mandatory policy (UI warning)** |
+| <a href="documentation/evidence/04-free-tier-1-mandatory-policy-403.png"><img src="documentation/evidence/04-free-tier-1-mandatory-policy-403.png" width="420" alt="403 limit of 1 mandatory policy"></a> | <a href="documentation/evidence/05-guardrails-hard-mandatory-ui-limit.png"><img src="documentation/evidence/05-guardrails-hard-mandatory-ui-limit.png" width="420" alt="Hard mandatory selected, limit warning"></a> |
+
+**Workspace:** VCS-driven from this repo, working directory `terraform`, trigger `/terraform/**/*`, manual apply, speculative plans on PRs.
+
+<a href="documentation/evidence/06-workspace-vcs-settings-1.png"><img src="documentation/evidence/06-workspace-vcs-settings-1.png" width="420" alt="Workspace VCS settings"></a> <a href="documentation/evidence/07-workspace-vcs-settings-2.png"><img src="documentation/evidence/07-workspace-vcs-settings-2.png" width="420" alt="Workspace VCS triggers"></a>
+
+**The policy set as it evolved:** `network` alone → the bundle → the bundle plus the advisory `instance_type` policy. Each policy's description records the GitHub commit it was deployed from.
+
+| `network` only | Bundle | Bundle + advisory |
+|---|---|---|
+| <a href="documentation/evidence/08-policy-set-network-only.png"><img src="documentation/evidence/08-policy-set-network-only.png" width="280" alt="Policy set with network"></a> | <a href="documentation/evidence/09-policy-set-guardrails-bundle.png"><img src="documentation/evidence/09-policy-set-guardrails-bundle.png" width="280" alt="Policy set with guardrails"></a> | <a href="documentation/evidence/10-policy-set-guardrails-and-instance-type.png"><img src="documentation/evidence/10-policy-set-guardrails-and-instance-type.png" width="280" alt="Policy set with guardrails and instance_type"></a> |
+
+**Policy deployment** (`scripts/upload-policies.ps1`): tests → bundle build → bundle tests → API upload, tagged with the git commit.
+
+<a href="documentation/evidence/11-upload-policies-bundle-created.png"><img src="documentation/evidence/11-upload-policies-bundle-created.png" width="640" alt="upload-policies.ps1 output"></a>
+
+**Cost guard-rail:** a $10/month AWS budget alert was set before any real resource was created.
+
+<a href="documentation/evidence/02-aws-budget-alert.png"><img src="documentation/evidence/02-aws-budget-alert.png" width="640" alt="AWS budget"></a>
+
+### 6.3 Scenario 1: Compliant baseline (applied)
+
+**Expected:** the plan passes every policy and is applied, and the real resources match the design: Ireland, an encrypted backup copy in Frankfurt, nothing outside the EU.
 
 | Run | Trigger | Plan | Policy check | Outcome |
 |---|---|---|---|---|
-| `run-Xz7zmhMJKXVNHwa3` "First compliant run: baseline stack with network policy" | UI, commit `74787df` | 23 to add, 0 change, 0 destroy | `network` (hard-mandatory) ✅ 1/1 passed, on HCP Sentinel 0.40.x | ✅ Applied: 23 created (confirmed manually: "Compliant baseline: network policy passed") |
-| Speculative plan for **PR #9** "TEST - non-compliant: DR snapshot copy to us-east-1 (do not merge)" | GitHub PR, `dr_region = "us-east-1"` | 3 to add, 3 to destroy (DR key, alias and snapshot copy replaced in us-east-1) | `atul0012345-guardrails` (hard-mandatory) ❌ **hard failed**, 0/1 passed | ⛔ **Errored**, cannot be applied; PR check red ("1 failed"); PR closed without merging |
+| `run-Xz7zmhMJKXVNHwa3` "First compliant run: baseline stack with network policy" | UI, commit `74787df` | 23 to add | `network` (hard-mandatory) ✅ passed, on HCP Sentinel 0.40.x | ✅ Applied: 23 created, after manual confirmation |
 
-| Speculative plan `run-u9HrW9R8yiofYKmm` for **PR #12** "TEST - non-compliant: unencrypted EBS volume (do not merge)" | GitHub PR, `aws_ebs_volume.data` `encrypted = false` | 4 to add, 4 to destroy (volume replaced, plus its attachment, snapshot and DR copy) | **1 of 2 passed**: `instance_type` (advisory) ✅, `atul0012345-guardrails` (hard-mandatory) ❌ `FAIL ebs_encrypted: aws_ebs_volume.data is not encrypted` | ⛔ **Errored**; PR check red; closed without merging |
+**Plan:** `region` is known at plan time (AWS provider v6), which the sovereignty policy relies on.
 
-| Speculative plan for **PR #13** "TEST - non-compliant: IMDSv1 allowed (do not merge)" | GitHub PR, `http_tokens = "optional"` | 0 to add, **1 to change** (`aws_instance.app` updated in place), 0 to destroy | 1 of 2 passed: `instance_type` ✅, guardrails ❌ `FAIL imdsv2_required: aws_instance.app allows IMDSv1 (http_tokens = optional)` **plus a false `FAIL imds_hop_limit_restricted: … hop_limit = 1, maximum allowed is 1`** | ⛔ Errored; PR check red. Exposed a policy bug (below), fixed in PR #14 |
-| Re-run `run-Am7V2uCBV3XFgcYm` for **PR #13** after the fix | empty commit on the PR branch | 1 to change (`aws_instance.app`) | 1 of 2 passed: guardrails ❌ **only** `FAIL imdsv2_required: aws_instance.app allows IMDSv1 (http_tokens = optional)`, with no hop-limit line | ⛔ Errored; still blocked, now for the right reason only |
+<a href="documentation/evidence/13-compliant-run-plan-region-known.png"><img src="documentation/evidence/13-compliant-run-plan-region-known.png" width="640" alt="Plan shows region eu-west-1"></a>
 
-**Bug found by PR #13: local tests passed, HCP disagreed.** The hop-limit rule required the value's type to be `int`. In HCP, plan numbers arrive as **floats** (`1.0`), but downloaded mocks write them as ints (`1`), so all 40 local tests passed while every HCP run failed the rule, including compliant ones. Fixes:
-- The rule now accepts `int` or `float`.
-- New regression tests feed **float** values to the metadata policy (`pass-float-hop`, `fail-float-hop-2`) and to the network policy, which compares port numbers (`pass-float-ports`, `fail-float-ports`). The network policy already handled floats.
-- Reverting the fix makes `pass-float-hop` fail with the exact message HCP showed.
+| Plan + policy passed | Applied |
+|---|---|
+| <a href="documentation/evidence/14-compliant-run-plan-policy-passed.webp"><img src="documentation/evidence/14-compliant-run-plan-policy-passed.webp" width="420" alt="Compliant run: policy passed"></a> | <a href="documentation/evidence/15-compliant-run-applied.webp"><img src="documentation/evidence/15-compliant-run-applied.webp" width="420" alt="Compliant run applied"></a> |
 
-Lesson: **mock-based tests are only as faithful as the mocks**, and mock files lose number types. A live run against the real platform is still needed (see 7.4).
+**Real outcome in AWS** (`scripts/audit-regions.ps1 -AwsProfile atu`):
 
-**Finding from PR #12: GitHub still offered "Merge pull request" despite the failed check.** Without branch protection, a failed policy check stops the **apply**, but not the **merge**. Merging would put non-compliant code on `main`; the resulting run would fail the hard-mandatory policy again, so nothing would be deployed, but `main` would no longer be compliant. Fix: a branch protection rule on `main` requiring the *Terraform Cloud* status check, so GitHub refuses the merge, and enforcement moves one step earlier, to code review (see 7.4).
+| When | eu-west-1 | eu-central-1 | us-east-1 (off-region) |
+|---|---|---|---|
+| Before apply | nothing | nothing | nothing: **CLEAN** |
+| After apply | instance (running), root volume 8 GiB encrypted, data volume 1 GiB encrypted, snapshot encrypted, VPC `10.20.0.0/16`, KMS alias | DR snapshot copy encrypted, DR KMS alias | **no drift** |
 
-**PR #9 policy output** (all violations in one run, thanks to `main = all [...]`):
+<a href="documentation/evidence/12-audit-before-apply-clean.png"><img src="documentation/evidence/12-audit-before-apply-clean.png" width="640" alt="Audit before apply: CLEAN"></a>
+
+<a href="documentation/evidence/16-audit-after-apply-8-items.png"><img src="documentation/evidence/16-audit-after-apply-8-items.png" width="640" alt="Audit after apply: 8 items"></a>
+
+This also confirms that a snapshot's `encrypted` value, unknown at plan time, ends up `True` after apply, because it's inherited from the encrypted volume.
+
+### 6.4 Scenario 2: DR copy outside the EU (PR #9): BLOCKED
+
+**Change:** `dr_region = "us-east-1"`. **Expected:** `atul0012345-guardrails` (hard-mandatory) fails, and the run can't be applied.
+
+| Run | Plan | Policy check | Outcome |
+|---|---|---|---|
+| Speculative plan for PR #9 | +3 / −3: the DR key, alias and snapshot copy are replaced in `us-east-1` | `atul0012345-guardrails` ❌ **hard failed** | ⛔ Errored; PR check red; closed without merging |
+
 ```
 Enforcement Mode: hard-mandatory
 FAIL resources_in_approved_regions: aws_kms_key.dr is in us-east-1 - approved: ["eu-west-1" "eu-central-1"]
@@ -421,33 +421,146 @@ FAIL resources_in_approved_regions: aws_kms_alias.dr is in us-east-1 - approved:
 FAIL sensitive_data_resident: aws_ebs_snapshot_copy.data_dr holds sensitive data in us-east-1: primary copy must be in eu-west-1, backup copies only in eu-central-1
 ```
 
-How this prevents the non-compliant deployment:
-1. The change could only reach `main` through a PR. The PR's speculative plan was evaluated by the hard-mandatory policy, and GitHub shows the failed check.
-2. A hard-mandatory failure cannot be overridden, and the run ended *Errored*.
-3. The destroy part of the plan (the compliant Frankfurt copy) didn't trigger a violation, because policies ignore deletes by design.
-4. **Second layer:** the plan succeeded even though the HCP IAM user can't call `us-east-1`, because planning a create makes no create API calls. The IAM region condition would only have blocked it at apply. Sentinel caught it one stage earlier, before any AWS call.
+| Plan | Policy hard failed | GitHub check failed |
+|---|---|---|
+| <a href="documentation/evidence/17-pr9-offregion-plan.png"><img src="documentation/evidence/17-pr9-offregion-plan.png" width="280" alt="PR 9 plan"></a> | <a href="documentation/evidence/18-pr9-offregion-policy-hard-failed.png"><img src="documentation/evidence/18-pr9-offregion-policy-hard-failed.png" width="280" alt="PR 9 policy hard failed"></a> | <a href="documentation/evidence/19-pr9-github-checks-failed.png"><img src="documentation/evidence/19-pr9-github-checks-failed.png" width="280" alt="PR 9 GitHub check failed"></a> |
 
-### Deployed state vs policy (audit)
+Observations:
+- **All violations in one run**, because `main = all [...]` evaluates every rule instead of stopping at the first failure.
+- The **destroy** part of the plan (the compliant Frankfurt copy) didn't cause a violation, because policies ignore deletes by design.
+- **Second layer:** the plan succeeded even though the HCP IAM user can't call `us-east-1`, because planning a create makes no create API calls. The IAM region condition would only have blocked it at apply; Sentinel stopped it one stage earlier.
+- The real plan from this run is stored (redacted) in `sentinel/mocks/offregion-snapshot/`. `test/sovereignty/fail-real-offregion.hcl` replays it, producing the same four FAIL lines locally.
 
-`scripts/audit-regions.ps1 -AwsProfile atu`, before and after the first apply:
+### 6.5 Scenario 3: Unencrypted EBS volume (PR #12): BLOCKED
 
-| When | eu-west-1 | eu-central-1 | us-east-1 (off-region) |
+**Change:** `aws_ebs_volume.data` `encrypted = false`. **Expected:** `ebs_encrypted` fails.
+
+| Run | Plan | Policy check | Outcome |
 |---|---|---|---|
-| Before apply | nothing | nothing | nothing: **CLEAN** |
-| After apply | instance (running), root volume 8 GiB encrypted, data volume 1 GiB encrypted, snapshot encrypted, VPC `10.20.0.0/16`, KMS alias | DR snapshot copy encrypted, DR KMS alias | **no drift** |
+| `run-u9HrW9R8yiofYKmm` for PR #12 | +4 / −4: the volume is replaced, plus its attachment, snapshot and DR copy | 1 of 2 passed: `instance_type` (advisory) ✅, `atul0012345-guardrails` ❌ `FAIL ebs_encrypted: aws_ebs_volume.data is not encrypted` | ⛔ Errored; PR check red; closed without merging |
 
-This confirms the real outcome matches the design: compute and data in Ireland, only an encrypted backup copy in Frankfurt, nothing outside the EU. It also confirms that the snapshot's `encrypted` value, unknown at plan time, ends up `True` after apply because it's inherited from the encrypted volume.
+`ebs_customer_managed_key` stayed **true**, because the key was still set in the code, which shows the two encryption rules are independent.
 
-### What the real mocks showed (input to the remaining policies)
-- **`region` is known at plan time for every regional resource**, including those that never set it (AWS provider v6 fills in the provider's region). All `eu-west-1`, except the DR KMS key, alias and snapshot copy in `eu-central-1`. Only the three IAM resources have no `region` (global service). → The sovereignty policy can read `change.after.region` directly.
-- **A snapshot's `encrypted` is unknown at plan time** (inherited from its volume). → The encryption policy must check the source volume, and the DR copy's own `encrypted`/`kms_key_id`, instead of the snapshot itself.
-- **`tfconfig/v2` lists only the provider blocks and module calls written in our code** (`hashicorp/aws ~> 6.0`, `terraform-aws-modules/vpc/aws 6.0.0`). The VPC module's internal `>= 5.79.0` provider requirement is invisible to Sentinel; only `.terraform.lock.hcl` records it.
-- **Mock hygiene:** before committing, the mocks were scanned for credentials, the AWS account ID and emails. HCP masks sensitive variables (only `"sensitive": true` is recorded, never the value).
-  - The **baseline** mocks (before anything was deployed) contained no account ID.
-  - The **PR #9** mocks were taken while the stack was running, so the plan and state held the real **AWS account ID** (330 occurrences inside ARNs and `owner_id`) and the instance's **public IP/DNS**. These were replaced with AWS documentation values (`111122223333`, `203.0.113.10`) before committing. No policy reads them, and the real-plan test gives the same result as HCP after redaction.
+| Plan | Policy hard failed | GitHub: check failed, merge still enabled |
+|---|---|---|
+| <a href="documentation/evidence/20-pr12-unencrypted-plan.png"><img src="documentation/evidence/20-pr12-unencrypted-plan.png" width="280" alt="PR 12 plan"></a> | <a href="documentation/evidence/21-pr12-unencrypted-policy-hard-failed.png"><img src="documentation/evidence/21-pr12-unencrypted-policy-hard-failed.png" width="280" alt="PR 12 policy hard failed"></a> | <a href="documentation/evidence/22-pr12-github-checks-failed-merge-enabled.png"><img src="documentation/evidence/22-pr12-github-checks-failed-merge-enabled.png" width="280" alt="PR 12 GitHub check failed"></a> |
+
+**Finding: GitHub still offered "Merge pull request" despite the failed check.** Without branch protection, a failed policy check stops the **apply**, but not the **merge**. A merge would put non-compliant code on `main`. The resulting run would fail the hard-mandatory policy again, so nothing would be deployed, but `main` would no longer be compliant. **Fix:** a branch protection rule on `main` that requires the *Terraform Cloud* status check, so GitHub refuses the merge and enforcement moves one step earlier, to code review (see 7.4).
+
+### 6.6 Scenario 4: IMDSv1 allowed (PR #13): BLOCKED, and a policy bug found
+
+**Change:** `http_tokens = "optional"`. **Expected:** `imdsv2_required` fails.
+
+| Run | Plan | Policy check | Outcome |
+|---|---|---|---|
+| First speculative plan for PR #13 | ~1: `aws_instance.app` updated in place | guardrails ❌ `FAIL imdsv2_required: aws_instance.app allows IMDSv1 (http_tokens = optional)` **plus a false** `FAIL imds_hop_limit_restricted: … hop_limit = 1, maximum allowed is 1` | ⛔ Errored; exposed a policy bug |
+| Re-run `run-Am7V2uCBV3XFgcYm` after the fix (PR #14) | ~1 | guardrails ❌ **only** `FAIL imdsv2_required` | ⛔ Errored; blocked for the right reason only |
+
+**The bug:** the hop-limit rule required the value's type to be `int`. HCP passes plan numbers as **floats** (`1.0`), but downloaded mocks store them as ints (`1`). So all 40 local tests passed, while every HCP run (compliant ones included) would have failed this rule.
+
+**Fix (PR #14):**
+- The rule now accepts `int` or `float`.
+- New float regression tests for the metadata policy (`pass-float-hop`, `fail-float-hop-2`) and the network policy, which compares port numbers (`pass-float-ports`, `fail-float-ports`).
+- Reverting the fix makes `pass-float-hop` fail with HCP's exact message.
+
+| Plan | Policy before the fix (false hop-limit line) |
+|---|---|
+| <a href="documentation/evidence/23-pr13-imdsv1-plan.png"><img src="documentation/evidence/23-pr13-imdsv1-plan.png" width="420" alt="PR 13 plan"></a> | <a href="documentation/evidence/24-pr13-imdsv1-policy-before-fix-false-hop.png"><img src="documentation/evidence/24-pr13-imdsv1-policy-before-fix-false-hop.png" width="420" alt="PR 13 policy before fix"></a> |
+| **Plan after the fix** | **Policy after the fix (only `imdsv2_required`)** |
+| <a href="documentation/evidence/26-pr13-imdsv1-plan-after-fix.png"><img src="documentation/evidence/26-pr13-imdsv1-plan-after-fix.png" width="420" alt="PR 13 plan after fix"></a> | <a href="documentation/evidence/27-pr13-imdsv1-policy-after-fix.png"><img src="documentation/evidence/27-pr13-imdsv1-policy-after-fix.png" width="420" alt="PR 13 policy after fix"></a> |
+
+<a href="documentation/evidence/25-pr13-github-after-fix.png"><img src="documentation/evidence/25-pr13-github-after-fix.png" width="640" alt="PR 13 GitHub after fix"></a>
+
+**Lesson:** mock-based tests are only as faithful as the mocks, and mock files lose number types. A live run on the real platform is still needed (see 7.4).
+
+### 6.7 Scenario 5: Advisory, `t3.large`
+
+_⏳ Pending. Expected: `atul0012345-guardrails` passes, `instance_type` (advisory) warns with `WARN instance_types_approved: aws_instance.app uses t3.large`, and the run is **not** blocked._
+
+### 6.8 Scenario 6: Drift, manual off-region copy
+
+_⏳ Pending. Expected: a snapshot copied to `us-east-1` with the AWS CLI, outside Terraform, is invisible to Sentinel; `scripts/audit-regions.ps1` reports it as `DRIFT`._
+
+### 6.9 Local mock tests (`sentinel test`)
+
+Run with `cd sentinel; sentinel test`. A test case passes when the policy returns the result the test expects, so a `fail-*.hcl` test **passing** means the policy correctly **rejected** that mock. Tests named `pass-real-*` / `fail-real-*` replay **real** plans downloaded from HCP runs.
+
+| Policy | Test case | Scenario | Expected `main` | Result |
+|---|---|---|---|---|
+| network | `pass.hcl` | SSH from the VPC only, public HTTPS (v4+v6), inline SG internal-only, legacy egress-all, deleted open SSH rule | true | ✅ PASS |
+| network | `pass-real-baseline.hcl` | **Real plan** from HCP run `run-Xz7zmhMJKXVNHwa3` (23 resources) | true | ✅ PASS |
+| network | `pass-float-ports.hcl` | Public HTTPS with ports `443.0` (float, as HCP passes it) | true | ✅ PASS |
+| network | `fail.hcl` | SSH from `0.0.0.0/0` | false | ✅ PASS |
+| network | `fail-ipv6.hcl` | SSH from `::/0` | false | ✅ PASS |
+| network | `fail-port-range.hcl` | TCP 0–65535 from the internet | false | ✅ PASS |
+| network | `fail-all-protocols.hcl` | `ip_protocol = "-1"` from the internet | false | ✅ PASS |
+| network | `fail-public-rdp.hcl` | RDP 3389 from the internet (SSH rule passes, ingress rule fails) | false | ✅ PASS |
+| network | `fail-inline-sg.hcl` | SSH via inline `aws_security_group` ingress | false | ✅ PASS |
+| network | `fail-legacy-rule.hcl` | SSH on IPv6 via legacy `aws_security_group_rule` | false | ✅ PASS |
+| network | `fail-float-ports.hcl` | SSH `22.0` and range `0.0–65535.0` from the internet (floats) | false | ✅ PASS |
+| sovereignty | `pass.hcl` | Irish compute + sensitive volume, Frankfurt snapshot copy + key, EC2-trusted IAM role, `random_id`, a data source in us-east-1, deletion of a us-east-1 copy, DLM and Backup copies to Frankfurt, a vault ARN unknown at plan time | true | ✅ PASS |
+| sovereignty | `pass-real-baseline.hcl` | **Real plan** (23 resources): all 5 rules true | true | ✅ PASS |
+| sovereignty | `fail-offregion-snapshot-copy.hcl` | Sensitive snapshot copy + key in **us-east-1** | false (regions ❌, sensitive ❌) | ✅ PASS |
+| sovereignty | `fail-real-offregion.hcl` | **Real plan** of the blocked PR #9; produces the same 4 FAIL lines as HCP | false (regions ❌, sensitive ❌, others ✅) | ✅ PASS |
+| sovereignty | `fail-compute-outside-eu.hcl` | EC2 in us-east-1 | false (regions ❌) | ✅ PASS |
+| sovereignty | `fail-compute-in-dr.hcl` | EC2 in Frankfurt: in the EU, but the DR region is backups only | false (regions ✅, DR ❌) | ✅ PASS |
+| sovereignty | `fail-sensitive-primary-in-dr.hcl` | Primary sensitive volume in Frankfurt | false (DR ❌, sensitive ❌) | ✅ PASS |
+| sovereignty | `fail-dlm-cross-region.hcl` | DLM policy in Ireland copying snapshots to us-east-1 | false (replication ❌) | ✅ PASS |
+| sovereignty | `fail-backup-copy-offregion.hcl` | AWS Backup copy to a us-east-1 vault | false (replication ❌) | ✅ PASS |
+| sovereignty | `fail-unknown-region.hcl` | Region unknown until apply (fail safe) | false (regions ❌) | ✅ PASS |
+| sovereignty | `fail-external-admin-trust.hcl` | IAM role trusts another AWS account | false (trust ❌) | ✅ PASS |
+| sovereignty | `fail-public-trust.hcl` | IAM role trusts `"*"` | false (trust ❌) | ✅ PASS |
+| encryption | `pass.hcl` | CMK volume, instance root, DR copy with a constant CMK ARN, launch template disk, deletion of an old unencrypted volume | true | ✅ PASS |
+| encryption | `pass-real-baseline.hcl` | **Real plan + config**: volume, root disk and DR copy all encrypted with CMK references | true | ✅ PASS |
+| encryption | `fail-unencrypted-volume.hcl` | `encrypted = false`, no key | false (encrypted ❌, CMK ❌) | ✅ PASS |
+| encryption | `fail-aws-managed-key.hcl` | Encrypted with `alias/aws/ebs` | false (encrypted ✅, CMK ❌) | ✅ PASS |
+| encryption | `fail-default-key.hcl` | Encrypted, no `kms_key_id` (AWS default key) | false (CMK ❌) | ✅ PASS |
+| encryption | `fail-unencrypted-root.hcl` | Instance root disk not encrypted | false | ✅ PASS |
+| encryption | `fail-root-not-configured.hcl` | No `root_block_device` (fail safe) | false | ✅ PASS |
+| encryption | `fail-unencrypted-copy.hcl` | DR snapshot copy not encrypted | false | ✅ PASS |
+| encryption | `fail-launch-template-unencrypted.hcl` | Launch template disk `encrypted = "false"` | false | ✅ PASS |
+| metadata | `pass.hcl` | IMDSv2 instance + launch template; instance with IMDS disabled | true | ✅ PASS |
+| metadata | `pass-real-baseline.hcl` | **Real plan**: `http_tokens = required`, hop limit 1 | true | ✅ PASS |
+| metadata | `pass-float-hop.hcl` | Hop limit `1.0` (float). Regression test for the PR #13 bug | true | ✅ PASS |
+| metadata | `fail-imdsv1-optional.hcl` | `http_tokens = "optional"` | false (IMDSv2 ❌, hop ✅) | ✅ PASS |
+| metadata | `fail-no-metadata-options.hcl` | No `metadata_options` (fail safe) | false | ✅ PASS |
+| metadata | `fail-hop-limit-2.hcl` | IMDSv2 but hop limit 2 | false (IMDSv2 ✅, hop ❌) | ✅ PASS |
+| metadata | `fail-float-hop-2.hcl` | Hop limit `2.0` (float) | false (hop ❌) | ✅ PASS |
+| metadata | `fail-launch-template-imdsv1.hcl` | Launch template allows IMDSv1 | false | ✅ PASS |
+| instance_type | `pass.hcl` | `t3.micro` instance, `t3.small` template, template without a type | true | ✅ PASS |
+| instance_type | `pass-real-baseline.hcl` | **Real plan**: `t3.micro` | true | ✅ PASS |
+| instance_type | `fail-t3-large.hcl` | `t3.large` (advisory) | false | ✅ PASS |
+| instance_type | `fail-unknown-type.hcl` | Type unknown at plan time (fail safe) | false | ✅ PASS |
+
+**Bundle tests:** `scripts/build-bundle.ps1` regenerates every mandatory policy's tests against the merged `atul0012345-guardrails` policy:
+- Fail cases must be rejected for the same rules.
+- Synthetic pass cases must keep that policy's rules true.
+- `pass-real*` cases must pass the **whole** bundle.
+
+Result: **40/40 PASS**.
+
+**Mutation tests** (does the test suite catch a weakened policy?):
+
+| Mutation | Tests that failed |
+|---|---|
+| `us-east-1` added to `approved_regions` | 4 sovereignty tests |
+| IMDSv1 accepted (`http_tokens` check disabled) | 2 metadata tests |
+| AWS-managed keys accepted | 1 encryption test |
+| Hop-limit check reverted to `int` only | `pass-float-hop`, with HCP's exact message |
+
+A weakened policy can't pass `sentinel test`, and `upload-policies.ps1` refuses to deploy one.
+
+### 6.10 What the real mocks showed
+
+- **`region` is known at plan time for every regional resource**, including ones that never set it (AWS provider v6 fills in the provider's region). Only the three IAM resources have no `region` (a global service). → The sovereignty policy reads `change.after.region` directly.
+- **A snapshot's `encrypted` is unknown at plan time** (it's inherited from the volume). → The encryption policy checks the source volume, and the DR copy's own `encrypted`/`kms_key_id`.
+- **`kms_key_id` is unknown in the plan** both when it references a new key and when it isn't set at all. → Key checks read `tfconfig/v2`.
+- **`tfconfig/v2` lists only the provider blocks and module calls in our code** (`hashicorp/aws ~> 6.0`, `terraform-aws-modules/vpc/aws 6.0.0`). The VPC module's internal `>= 5.79.0` provider requirement is invisible to Sentinel; only `.terraform.lock.hcl` records it.
+- **Numbers are floats on HCP but ints in mock files** (see scenario 4).
+- **Mock hygiene:** before committing, the mocks were scanned for credentials, the AWS account ID and emails. HCP records sensitive variables only as `"sensitive": true`, never their values.
+  - The **baseline** mocks, taken before anything was deployed, contained no account ID.
+  - The **PR #9** mocks were taken while the stack was running. Their plan and state held the real **AWS account ID** (330 occurrences) and the instance's **public IP/DNS**, which were replaced with AWS documentation values (`111122223333`, `203.0.113.10`) before committing. No policy reads them, and the real-plan test gives the same result after redaction.
   - Lesson: **mocks from runs against existing infrastructure are effectively a copy of the state**, and must be treated as sensitive data before publishing.
-
-_TODO: test C (advisory `t3.large`) and the drift demo: see `documentation/evidence/test-results.md`, scenarios 5–6._
 
 ## 7. Decision justification
 
