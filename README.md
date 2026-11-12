@@ -340,7 +340,7 @@ Every claim in this section is backed by a screenshot in [`documentation/evidenc
 | 3 | [Unencrypted EBS volume (PR #12)](#65-scenario-3-unencrypted-ebs-volume-pr-12-blocked) | `encrypted = false` | **blocked** | ⛔ hard failed: `ebs_encrypted` |
 | 4 | [IMDSv1 allowed (PR #13)](#66-scenario-4-imdsv1-allowed-pr-13-blocked-and-a-policy-bug-found) | `http_tokens = "optional"` | **blocked** | ⛔ hard failed: `imdsv2_required` (the first run also exposed a policy bug, now fixed) |
 | 5 | [Advisory: `t3.large` (PR #17)](#67-scenario-5-advisory-t3large) | `instance_type = "t3.large"` | **warn, not blocked** | ⚠️ advisory warning only; run **not** blocked, GitHub check green. Also exposed an unpinned-AMI replacement risk |
-| 6 | [Drift: manual `us-east-1` copy](#68-scenario-6-drift-manual-off-region-copy) | AWS CLI, outside Terraform | Sentinel can't see it; the audit flags `DRIFT` | ⏳ pending |
+| 6 | [Drift: manual `us-east-1` copy](#68-scenario-6-drift-manual-off-region-copy) | AWS CLI, outside Terraform | Sentinel can't see it; the audit flags `DRIFT` | 🔎 HCP: +0 ~0 −0, **2/2 policies passed**; audit: **`DRIFT`** detected → copy deleted → clean |
 
 **How a non-compliant change is prevented:**
 1. Every change reaches `main` only through a PR. HCP runs a speculative plan for the PR and evaluates it against the policy set, and GitHub shows the result as a status check.
@@ -507,11 +507,36 @@ WARN instance_types_approved: aws_instance.app uses t3.large - approved: ["t3.mi
 - The data volume takes its availability zone from the instance, so a new instance makes the AZ unknown and the volume is **replaced** too, which would be **data loss**. The snapshot, DR copy and attachment follow.
 - **Supply chain:** "latest" is an **unpinned dependency**, the same problem as an unpinned module: the image that runs changes without any code change or review (see 7.3).
 - **Plan-time policy gap:** no policy flagged that a plan **destroys sensitive data** (see 7.4).
-- **Remediation:** pin the AMI (`lifecycle { ignore_changes = [ami] }`, so AMI updates become a deliberate, reviewed change), and take the volume's AZ from the subnet instead of the instance. A Sentinel rule could also block replacing or deleting `data_classification = sensitive` resources.
+- **Remediation (recommended, not applied):** pin the AMI (`lifecycle { ignore_changes = [ami] }`, so AMI updates become a deliberate, reviewed change), and take the volume's AZ from the subnet instead of the instance. A Sentinel rule could also block replacing or deleting `data_classification = sensitive` resources.
+- **Decision:** accepted as a known risk for this assignment. The stack holds no real data and is destroyed after testing, so there was no value in the fix here. In production, the remediation above would be required before the next apply. The finding is kept as evidence of a limitation of plan-time policy.
 
 ### 6.8 Scenario 6: Drift, manual off-region copy
 
-_⏳ Pending. Expected: a snapshot copied to `us-east-1` with the AWS CLI, outside Terraform, is invisible to Sentinel; `scripts/audit-regions.ps1` reports it as `DRIFT`._
+**Change:** the sensitive backup snapshot (`snap-07b0864d7491a70e0`, eu-west-1) is copied to **`us-east-1` by hand** with the AWS CLI, using the admin identity, outside Terraform. This simulates a mistake or an insider. **Expected:** Terraform and Sentinel don't see it; the out-of-band audit does.
+
+```
+aws ec2 copy-snapshot --region us-east-1 --source-region eu-west-1 --source-snapshot-id snap-07b0864d7491a70e0 --encrypted --description "DRIFT TEST: manual copy outside Terraform"
+→ snap-0dec8f104a1958d6f   us-east-1   completed   encrypted
+```
+
+| Control | Sees the off-region copy? | Evidence |
+|---|---|---|
+| AWS / IAM for the **human admin** | ❌ allowed: only the HCP pipeline user is region-restricted | the copy completed |
+| **Terraform** (refresh-only run) | ❌ **+0 ~0 −0**: the copy isn't in the state | screenshot 33 |
+| **Sentinel** (same run) | ❌ **2 of 2 passed**: `atul0012345-guardrails` and `instance_type` both passed, because the plan is empty | screenshot 33 |
+| **`scripts/audit-regions.ps1`** (reads the real account) | ✅ **`[DRIFT] us-east-1 snapshot snap-0dec8f104a1958d6f`**, even though the copy carries **no project tags** | screenshot 34 |
+
+**Remediation:** `aws ec2 delete-snapshot --region us-east-1 --snapshot-id snap-0dec8f104a1958d6f`. The audit then shows `us-east-1` empty and the 8 expected project items (screenshot 35).
+
+| HCP: refresh-only, no changes, policies passed | Audit: DRIFT detected | Audit: after remediation |
+|---|---|---|
+| <a href="documentation/evidence/33-drift-refresh-only-no-changes-policies-passed.png"><img src="documentation/evidence/33-drift-refresh-only-no-changes-policies-passed.png" width="280" alt="Refresh-only run: no changes, policies passed"></a> | <a href="documentation/evidence/34-drift-audit-detects-us-east-1-copy.png"><img src="documentation/evidence/34-drift-audit-detects-us-east-1-copy.png" width="280" alt="Audit detects DRIFT in us-east-1"></a> | <a href="documentation/evidence/35-drift-audit-after-remediation.png"><img src="documentation/evidence/35-drift-audit-after-remediation.png" width="280" alt="Audit after remediation"></a> |
+
+What this shows:
+- **Plan-time policy only governs changes made *through* Terraform.** Data moved by any other path (console, CLI, scripts, AWS Backup jobs set up by hand) is invisible to it, and the policy check even reports *passed*.
+- **The jurisdiction and the keys are lost together.** The copy left the EU and is encrypted with AWS's default key in `us-east-1`, not the organisation's customer-managed key, which stays in Ireland. Customer-managed key control, a sovereignty measure, doesn't follow data copied out of band.
+- **The IAM region restriction protects only the pipeline identity.** People with broader permissions can still move data. Closing that gap needs an organisation-level guardrail, e.g. an **AWS Organizations SCP** that denies all non-EU regions for every identity, plus continuous detection (AWS Config rules, CloudTrail alerts on `CopySnapshot`) instead of a manually run audit.
+- **Detection tags must not be trusted.** The copy carried no project tags, so the audit treats **any** resource in an off-region as drift, instead of filtering by tag as it does in the EU regions.
 
 ### 6.9 Local mock tests (`sentinel test`)
 
@@ -607,6 +632,7 @@ Points identified so far:
 - The EU region is still operated by a US-headquartered provider (US CLOUD Act exposure).
 - Global services (IAM, Route 53, CloudFront) have no region, so a region rule can only exempt them, not constrain them. CloudFront in particular caches content in edge locations worldwide.
 - Some replication targets carry no region at all: an S3 replication destination is a bucket ARN (`arn:aws:s3:::bucket`) with no region, so the policy cannot judge it from the plan.
+- Region rules in Sentinel only cover changes made through Terraform. A manual CLI copy to `us-east-1` passed every policy and was found only by the out-of-band audit (scenario 6). Copies made out of band also leave the organisation's key control.
 - A tag (`data_classification`) only protects data if it's applied. Untagged sensitive data is only covered by the general region rule.
 
 ### 7.3 Importance of supply chain integrity

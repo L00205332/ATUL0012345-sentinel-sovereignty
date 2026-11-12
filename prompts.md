@@ -225,6 +225,34 @@ All 27 screenshots are embedded as clickable thumbnails. Fixed a rendering bug: 
 
 **What the AI did:** Confirmed the advisory behaviour: the policy check passed with one advisory failure, the run wasn't blocked, and the GitHub check was green. Contrasted it with the hard-mandatory scenarios. Diagnosed the unexpected +5/−5 plan: the AMI comes from the "latest" SSM parameter, AWS had published a new image, so every plan would replace the instance, and through the volume's AZ dependency the sensitive data volume, snapshot and DR copy too. Flagged that the instance-diff screenshot shows the account ID and public IP, and excluded it from the evidence. Added scenario 5 (4 screenshots, a comparison table, the advisory risk and the AMI finding) and the updated policy-set screenshot to the README. Added new points to 7.3 (unpinned "latest" image) and 7.4 (policies don't see consequences such as sensitive data being replaced).
 
+### Prompt 28 (2026-11-12)
+> done, PR merged and ignore the AMI fix
+
+**What the AI did:** Recorded the decision in the README: the AMI fix is a recommended remediation that wasn't applied, an accepted risk for a stack with no real data that's destroyed after testing.
+
+### Prompt 29 (2026-11-12)
+> we need to move last test, Drift, manual off-region copy
+
+**What the AI did:** Designed the drift demonstration and gave the student the AWS CLI commands to run with the admin profile:
+1. Copy the sensitive backup snapshot from eu-west-1 to us-east-1 outside Terraform.
+2. Run an HCP refresh-only run, to avoid the unrelated AMI replacement in a normal plan.
+3. Run `audit-regions.ps1`.
+4. Delete the copy and audit again.
+
+When the silently assigned `$snap` variable looked empty, the AI ran the same read-only lookup to confirm it returned `snap-07b0864d7491a70e0`. Then it confirmed with a read-only describe that the copy `snap-0dec8f104a1958d6f` had completed in us-east-1.
+
+### Prompt 30 (2026-11-12)
+> [screenshots: HCP refresh-only run +0 ~0 −0 with 2 of 2 policies passed; audit with "[DRIFT] us-east-1 snapshot snap-0dec8f104a1958d6f"; audit after delete-snapshot back to 8 items]
+> done, copy deleted and audit is back to 8 items
+
+**What the AI did:** Added the three screenshots to the evidence, redacting the account ID line in the two audit images (checked visually). Wrote README scenario 6 with:
+- the command
+- a table of which control sees the copy (admin IAM no, Terraform no, Sentinel "passed", audit yes)
+- the remediation
+- the findings: plan-time policy only governs Terraform changes; data and key control leave together; the IAM restriction covers only the pipeline identity, so an SCP plus continuous detection is needed; tags can't be relied on for detection
+
+Added a 7.2 limitation point. All 35 embedded screenshots resolve, and no pending placeholders remain in §6.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->
