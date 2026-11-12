@@ -265,6 +265,12 @@ Added a 7.2 limitation point. All 35 embedded screenshots resolve, and no pendin
 
 The first parse failed on an inline `if` expression, which Sentinel doesn't have. Generated 11 hand-written cases (typosquatted and implicit providers, missing/open constraints, git and untrusted module sources, ranges, no version, a nested unpinned module, an old Terraform) plus two real-plan tests. 13/13 pass. Two mutation tests (any string counts as a pin; plan-side provider check removed) were caught. Added it to `sentinel.hcl`: bundle now 5 policies / 16 rules, 57/57 policy tests, 53/53 bundle tests. Documented the rules, design decisions, the "risks Sentinel cannot address" table and 7.3 points in the README.
 
+### Prompt 32 (2026-11-12)
+> [screenshots: upload-policies.ps1 deploying the 5-policy bundle from commit a873e1a; PR #21 "TEST - non-compliant: unpinned module version" with all checks failed; HCP status page with the Terraform plan check passed (5 to add, 5 to destroy) and the sentinel check failed (hard-mandatory); policy output "FAIL modules_pinned: module "vpc" … is not pinned to an exact version: "~> 6.0""]
+> done, PR merged and policies uploaded, running the unpinned module test
+
+**What the AI did:** Confirmed the result: exactly one violation, `modules_pinned`; the plan succeeded and only the policy check failed, which shows "deployable" vs "allowed"; the +5/−5 is the unrelated AMI replacement. Added 4 screenshots and README scenario 7 (§6.9), renumbered the following subsections, and updated the summary table and the evidence index. Verified 39 embedded images and all anchors.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->
