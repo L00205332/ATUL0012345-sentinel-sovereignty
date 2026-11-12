@@ -1,0 +1,11 @@
+# Floats, as HCP passes plan numbers.
+resource_changes = {
+	"aws_vpc_security_group_ingress_rule.ssh": {
+		"address": "aws_vpc_security_group_ingress_rule.ssh", "type": "aws_vpc_security_group_ingress_rule", "mode": "managed",
+		"change": {"actions": ["create"], "after": {"cidr_ipv4": "0.0.0.0/0", "cidr_ipv6": null, "from_port": 22.0, "to_port": 22.0, "ip_protocol": "tcp"}},
+	},
+	"aws_vpc_security_group_ingress_rule.range": {
+		"address": "aws_vpc_security_group_ingress_rule.range", "type": "aws_vpc_security_group_ingress_rule", "mode": "managed",
+		"change": {"actions": ["create"], "after": {"cidr_ipv4": "0.0.0.0/0", "cidr_ipv6": null, "from_port": 0.0, "to_port": 65535.0, "ip_protocol": "tcp"}},
+	},
+}
