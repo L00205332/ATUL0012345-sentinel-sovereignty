@@ -1,0 +1,27 @@
+# Configuration for: Non-compliant: trusted module with no version at all (always the latest).
+providers = {
+	"aws": {
+		"alias":               "",
+		"config":              {},
+		"full_name":           "registry.terraform.io/hashicorp/aws",
+		"module_address":      "",
+		"name":                "aws",
+		"provider_config_key": "aws",
+		"version_constraint":  "~> 6.0",
+	},
+}
+
+module_calls = {
+	"vpc": {
+		"config":             {},
+		"count":              {},
+		"depends_on":         [],
+		"for_each":           {},
+		"module_address":     "",
+		"name":               "vpc",
+		"source":             "terraform-aws-modules/vpc/aws",
+		"version_constraint": "",
+	},
+}
+
+resources = {}

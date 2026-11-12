@@ -1,0 +1,47 @@
+# Configuration for: Compliant: hashicorp/aws ~> 6.0, registry module pinned to 6.0.0 and '= 5.1.2', a local module without a version, Terraform 1.17.1.
+providers = {
+	"aws": {
+		"alias":               "",
+		"config":              {},
+		"full_name":           "registry.terraform.io/hashicorp/aws",
+		"module_address":      "",
+		"name":                "aws",
+		"provider_config_key": "aws",
+		"version_constraint":  "~> 6.0",
+	},
+}
+
+module_calls = {
+	"vpc": {
+		"config":             {},
+		"count":              {},
+		"depends_on":         [],
+		"for_each":           {},
+		"module_address":     "",
+		"name":               "vpc",
+		"source":             "terraform-aws-modules/vpc/aws",
+		"version_constraint": "6.0.0",
+	},
+	"sg": {
+		"config":             {},
+		"count":              {},
+		"depends_on":         [],
+		"for_each":           {},
+		"module_address":     "",
+		"name":               "sg",
+		"source":             "terraform-aws-modules/security-group/aws",
+		"version_constraint": "= 5.1.2",
+	},
+	"tags": {
+		"config":             {},
+		"count":              {},
+		"depends_on":         [],
+		"for_each":           {},
+		"module_address":     "",
+		"name":               "tags",
+		"source":             "./modules/tags",
+		"version_constraint": "",
+	},
+}
+
+resources = {}

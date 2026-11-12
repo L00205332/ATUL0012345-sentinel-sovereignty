@@ -41,13 +41,13 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 │   ├── sentinel.hcl                   ✅ every policy + its enforcement level (drives the bundle)
 │   ├── network.sentinel               ✅
 │   ├── sovereignty.sentinel           ✅
-│   ├── supply_chain.sentinel          ⏳
+│   ├── supply_chain.sentinel          ✅
 │   ├── instance_type.sentinel         ✅ advisory
 │   ├── encryption.sentinel            ✅
 │   ├── metadata.sentinel              ✅
 │   ├── mocks/compliant-baseline/      ✅ REAL mocks downloaded from HCP run run-Xz7zmhMJKXVNHwa3
 │   ├── mocks/offregion-snapshot/      ✅ REAL mocks from the blocked PR #9 run run-kwQg5XK3EGXKwPTs (redacted)
-│   └── test/<policy>/                 ✅ network, sovereignty, encryption, metadata, instance_type · ⏳ supply_chain
+│   └── test/<policy>/                 ✅ all six policies: *.hcl test cases + mock-*.sentinel
 ├── terraform/
 │   ├── versions.tf                    ✅ Terraform/provider constraints + HCP cloud block
 │   ├── providers.tf                   ✅ AWS provider (eu-west-1) + default tags
@@ -139,7 +139,7 @@ _TODO: discussion of what region rules cannot guarantee (see 7.2)._
 
 ### 4.2 IaC supply chain security
 
-Controls already in the Terraform code (Sentinel policy ⏳):
+Controls in the Terraform code itself, re-checked on every run by `supply_chain.sentinel` (below):
 
 | Layer | Control | Where |
 |---|---|---|
@@ -155,7 +155,30 @@ Validation result (`terraform init -backend=false` + `terraform validate`):
 - The lock file records the **combined** constraint `">= 5.79.0, ~> 6.0"`. The `>= 5.79.0` part comes from the VPC module, not from our code. **Modules bring their own dependency constraints**, so reviewing a module means reviewing its dependencies too.
 - `terraform validate`: *Success! The configuration is valid.*
 
-_TODO: supply_chain.sentinel, and risks Sentinel cannot address._
+#### Supply chain policy: [`sentinel/supply_chain.sentinel`](sentinel/supply_chain.sentinel) ✅ (hard-mandatory, in the bundle)
+
+| Rule | Enforces | Reads |
+|---|---|---|
+| `providers_from_approved_sources` | Every provider that is **configured or used** comes from an approved source (`registry.terraform.io/hashicorp/aws`). Look-alike sources such as `hashicorp-aws/aws` fail | `tfconfig/v2` providers **and** `tfplan/v2` `provider_name` of every resource and data source |
+| `provider_versions_approved` | Each configured provider uses an approved constraint (`~> 6.0`). A missing or open-ended constraint (`>= 5.0`) fails | `tfconfig/v2` providers |
+| `modules_from_trusted_sources` | Modules come from an approved registry namespace (`terraform-aws-modules/`) or a local path. Git, HTTP, S3 and other `::` / `://` sources fail | `tfconfig/v2` module_calls (nested calls included) |
+| `modules_pinned` | Registry modules use an **exact** version (`6.0.0` / `= 6.0.0`), never a range or no version | `tfconfig/v2` module_calls |
+| `terraform_version_approved` | The plan was produced by an approved Terraform core (`1.17.*`) | `tfplan/v2` `terraform_version` |
+
+Design decisions:
+1. **The configuration *and* the plan.** A resource can use a provider with no `provider` block at all (Terraform adds it implicitly). Only the plan's `provider_name` shows it. A mutation test that removed the plan check let `fail-implicit-provider` through.
+2. **Modules must be pinned exactly; providers may use `~> 6.0`.** Providers are locked to an exact version **and SHA-256 checksums** in `.terraform.lock.hcl`, so a `~>` range in the code is safe: upgrades only happen when someone runs `terraform init -upgrade` and commits a new lock file. **Modules aren't in the lock file at all.** A range like `~> 6.0` would silently pull new module code on the next `init`, so for modules the exact pin in the code is the only control.
+3. **Parameters for the approved lists** (`sc_approved_providers`, `sc_approved_module_prefixes`, `sc_approved_terraform_prefixes`). Approving a new provider or module namespace is a reviewed one-line change.
+
+**Supply chain risks this policy cannot address** (see 7.3):
+
+| Risk | Why Sentinel can't see it | What covers it instead |
+|---|---|---|
+| A tampered or substituted provider **binary** | Sentinel sees source addresses, not files | `.terraform.lock.hcl` checksums for Linux and Windows, plus HashiCorp's GPG signature, checked by the CLI ("signed by HashiCorp") |
+| **What a module's code requires or does** (e.g. the VPC module's own `>= 5.79.0` provider requirement, or a malicious resource inside a trusted module) | `tfconfig/v2` lists only *our* calls, not the module's internals | Code review of the module version before approving it; the resources it creates are still checked by the other policies |
+| A **compromised maintainer, registry or release** of an approved namespace | A trusted name doesn't guarantee trusted content | Exact pinning (an upgrade needs review), a private registry with vetted copies, monitoring of advisories |
+| Moving targets outside Terraform's dependency model, e.g. the **"latest" AMI** SSM parameter (scenario 5) | It's a data value, not a provider or module | Pinning the image, or `ignore_changes` |
+| Compromise of **this repository, the CI or HCP** (stolen token, malicious merge, edited policies) | The policies themselves run on that platform | Branch protection, reviews, least-privilege tokens, the commit recorded in each deployed policy |
 
 ### 4.3 Infrastructure security
 
@@ -215,7 +238,7 @@ Levels are set per policy in `sentinel.hcl` (✅ = built):
 |---|---|---|---|
 | sovereignty ✅ | hard-mandatory | part of **`atul0012345-guardrails`** (hard-mandatory) | Legal/jurisdictional requirement, no override |
 | network ✅ | hard-mandatory | part of `atul0012345-guardrails` | Public SSH is a direct attack surface |
-| supply_chain | hard-mandatory | part of `atul0012345-guardrails` | An untrusted provider or module can compromise everything |
+| supply_chain ✅ | hard-mandatory | part of `atul0012345-guardrails` | An untrusted provider or module can compromise everything |
 | encryption ✅ | hard-mandatory | part of `atul0012345-guardrails` | Data protection baseline |
 | metadata (IMDSv2) ✅ | hard-mandatory | part of `atul0012345-guardrails` | Blocks credential theft via SSRF |
 | instance_type ✅ | **advisory** | separate advisory policy | Cost/standards control: warns, doesn't block |
@@ -334,7 +357,7 @@ Every claim in this section is backed by a screenshot in [`documentation/evidenc
 
 | # | Scenario | Change | Expected | Actual |
 |---|---|---|---|---|
-| 0 | [Local mock tests](#69-local-mock-tests-sentinel-test) | — | all pass | ✅ **44/44** policy tests, **40/40** bundle tests |
+| 0 | [Local mock tests](#69-local-mock-tests-sentinel-test) | — | all pass | ✅ **57/57** policy tests, **53/53** bundle tests |
 | 1 | [Compliant baseline](#63-scenario-1-compliant-baseline-applied) | `main` | policies pass, apply allowed | ✅ passed; 23 resources applied |
 | 2 | [Sovereignty: DR copy outside the EU (PR #9)](#64-scenario-2-dr-copy-outside-the-eu-pr-9-blocked) | `dr_region = "us-east-1"` | **blocked** | ⛔ hard failed: `resources_in_approved_regions` ×3, `sensitive_data_resident` |
 | 3 | [Unencrypted EBS volume (PR #12)](#65-scenario-3-unencrypted-ebs-volume-pr-12-blocked) | `encrypted = false` | **blocked** | ⛔ hard failed: `ebs_encrypted` |
@@ -584,6 +607,19 @@ Run with `cd sentinel; sentinel test`. A test case passes when the policy return
 | metadata | `fail-hop-limit-2.hcl` | IMDSv2 but hop limit 2 | false (IMDSv2 ✅, hop ❌) | ✅ PASS |
 | metadata | `fail-float-hop-2.hcl` | Hop limit `2.0` (float) | false (hop ❌) | ✅ PASS |
 | metadata | `fail-launch-template-imdsv1.hcl` | Launch template allows IMDSv1 | false | ✅ PASS |
+| supply_chain | `pass.hcl` | `hashicorp/aws ~> 6.0`; registry modules pinned to `6.0.0` and `= 5.1.2`; a local module without a version; a data source; Terraform 1.17.1 | true | ✅ PASS |
+| supply_chain | `pass-real-baseline.hcl` | **Real plan + config**: `hashicorp/aws ~> 6.0`, `terraform-aws-modules/vpc/aws 6.0.0`, Terraform 1.17.1 | true | ✅ PASS |
+| supply_chain | `pass-offregion-plan-supply-chain-ok.hcl` | **Real** PR #9 plan: it breaks sovereignty, but its providers, modules and version are approved | true | ✅ PASS |
+| supply_chain | `fail-typosquat-provider.hcl` | Look-alike provider source `hashicorp-aws/aws` | false (sources ❌) | ✅ PASS |
+| supply_chain | `fail-implicit-provider.hcl` | `random_id` uses `hashicorp/random` with no provider block (visible only in the plan) | false (sources ❌) | ✅ PASS |
+| supply_chain | `fail-provider-no-constraint.hcl` | `hashicorp/aws` with no version constraint | false (versions ❌) | ✅ PASS |
+| supply_chain | `fail-provider-open-constraint.hcl` | `hashicorp/aws >= 5.0` (any future major) | false (versions ❌) | ✅ PASS |
+| supply_chain | `fail-module-git-source.hcl` | Module from `git::https://github.com/…` | false (module source ❌) | ✅ PASS |
+| supply_chain | `fail-module-untrusted-namespace.hcl` | Registry module from an unapproved namespace | false (module source ❌) | ✅ PASS |
+| supply_chain | `fail-module-range.hcl` | Trusted module with `~> 6.0` | false (pinned ❌) | ✅ PASS |
+| supply_chain | `fail-module-no-version.hcl` | Trusted module with no version | false (pinned ❌) | ✅ PASS |
+| supply_chain | `fail-nested-module-unpinned.hcl` | A module **nested inside** the VPC module uses `>= 1.0` | false (pinned ❌) | ✅ PASS |
+| supply_chain | `fail-terraform-version.hcl` | Plan produced by Terraform 1.5.7 | false (version ❌) | ✅ PASS |
 | instance_type | `pass.hcl` | `t3.micro` instance, `t3.small` template, template without a type | true | ✅ PASS |
 | instance_type | `pass-real-baseline.hcl` | **Real plan**: `t3.micro` | true | ✅ PASS |
 | instance_type | `fail-t3-large.hcl` | `t3.large` (advisory) | false | ✅ PASS |
@@ -594,7 +630,7 @@ Run with `cd sentinel; sentinel test`. A test case passes when the policy return
 - Synthetic pass cases must keep that policy's rules true.
 - `pass-real*` cases must pass the **whole** bundle.
 
-Result: **40/40 PASS**.
+Result: **53/53 PASS** (5 bundled policies, 16 rules).
 
 **Mutation tests** (does the test suite catch a weakened policy?):
 
@@ -604,6 +640,8 @@ Result: **40/40 PASS**.
 | IMDSv1 accepted (`http_tokens` check disabled) | 2 metadata tests |
 | AWS-managed keys accepted | 1 encryption test |
 | Hop-limit check reverted to `int` only | `pass-float-hop`, with HCP's exact message |
+| Any version string accepted as an exact module pin | 2 supply_chain tests (range, nested range) |
+| Providers checked only in the config, not in the plan | `fail-implicit-provider` |
 
 A weakened policy can't pass `sentinel test`, and `upload-policies.ps1` refuses to deploy one.
 
@@ -639,6 +677,8 @@ Points identified so far:
 _TODO_
 
 Points identified so far:
+- **Two layers, each covering what the other can't.** The lock file pins provider *bytes* (versions plus checksums, verified with HashiCorp's signature); Sentinel pins *intent* (which sources, constraints and module versions may appear in code at all), so loosening them in a PR is blocked.
+- **Modules are the weak point.** They aren't in `.terraform.lock.hcl`, so an exact version in the code is the only thing that fixes which module code runs, and `modules_pinned` enforces that. A trusted namespace still doesn't guarantee trusted content.
 - "Latest" is an unpinned dependency. The AMI taken from the *latest Amazon Linux 2023* parameter changed on its own and turned a one-line resize into a replacement of the instance and its sensitive data volume (scenario 5). Pinning applies to images as much as to providers and modules.
 
 ### 7.4 Limitations of Sentinel and plan-time enforcement

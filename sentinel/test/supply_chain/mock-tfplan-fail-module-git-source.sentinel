@@ -1,0 +1,31 @@
+# Non-compliant: module from a git repository (not the trusted registry namespace).
+terraform_version = "1.17.1"
+
+resource_changes = {
+	"aws_instance.app": {
+		"address":       "aws_instance.app",
+		"type":          "aws_instance",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after":         {},
+			"after_unknown": {},
+		},
+	},
+	"module.vpc.aws_vpc.this[0]": {
+		"address":       "module.vpc.aws_vpc.this[0]",
+		"type":          "aws_vpc",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after":         {},
+			"after_unknown": {},
+		},
+	},
+}

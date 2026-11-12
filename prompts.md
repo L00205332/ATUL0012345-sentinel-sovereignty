@@ -253,6 +253,18 @@ When the silently assigned `$snap` variable looked empty, the AI ran the same re
 
 Added a 7.2 limitation point. All 35 embedded screenshots resolve, and no pending placeholders remain in §6.
 
+### Prompt 31 (2026-11-12)
+> done, PR merged, let's write the supply chain policy
+
+**What the AI did:** Inspected the real plan and config for supply-chain data: `terraform_version`, `provider_name` on every resource and data source, provider `full_name`/`version_constraint`, and module `source`/`version_constraint`. Wrote `sentinel/supply_chain.sentinel` (hard-mandatory, `sc_` prefix) with five rules:
+- approved provider sources, from the config AND the plan
+- approved provider constraints
+- trusted module sources, nested calls included, git/http/s3 rejected
+- exactly pinned modules
+- an approved Terraform version
+
+The first parse failed on an inline `if` expression, which Sentinel doesn't have. Generated 11 hand-written cases (typosquatted and implicit providers, missing/open constraints, git and untrusted module sources, ranges, no version, a nested unpinned module, an old Terraform) plus two real-plan tests. 13/13 pass. Two mutation tests (any string counts as a pin; plan-side provider check removed) were caught. Added it to `sentinel.hcl`: bundle now 5 policies / 16 rules, 57/57 policy tests, 53/53 bundle tests. Documented the rules, design decisions, the "risks Sentinel cannot address" table and 7.3 points in the README.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->

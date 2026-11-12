@@ -1,0 +1,44 @@
+# Non-compliant: a resource uses hashicorp/random without any provider block (only visible in the plan).
+terraform_version = "1.17.1"
+
+resource_changes = {
+	"aws_instance.app": {
+		"address":       "aws_instance.app",
+		"type":          "aws_instance",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after":         {},
+			"after_unknown": {},
+		},
+	},
+	"module.vpc.aws_vpc.this[0]": {
+		"address":       "module.vpc.aws_vpc.this[0]",
+		"type":          "aws_vpc",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after":         {},
+			"after_unknown": {},
+		},
+	},
+	"random_id.suffix": {
+		"address":       "random_id.suffix",
+		"type":          "random_id",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/random",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after":         {},
+			"after_unknown": {},
+		},
+	},
+}

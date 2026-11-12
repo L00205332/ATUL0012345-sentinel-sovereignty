@@ -1,0 +1,37 @@
+# Configuration for: Non-compliant: a module nested inside the VPC module uses a range; nested calls are checked too.
+providers = {
+	"aws": {
+		"alias":               "",
+		"config":              {},
+		"full_name":           "registry.terraform.io/hashicorp/aws",
+		"module_address":      "",
+		"name":                "aws",
+		"provider_config_key": "aws",
+		"version_constraint":  "~> 6.0",
+	},
+}
+
+module_calls = {
+	"vpc": {
+		"config":             {},
+		"count":              {},
+		"depends_on":         [],
+		"for_each":           {},
+		"module_address":     "",
+		"name":               "vpc",
+		"source":             "terraform-aws-modules/vpc/aws",
+		"version_constraint": "6.0.0",
+	},
+	"module.vpc:flow_logs": {
+		"config":             {},
+		"count":              {},
+		"depends_on":         [],
+		"for_each":           {},
+		"module_address":     "module.vpc",
+		"name":               "flow_logs",
+		"source":             "terraform-aws-modules/vpc/aws//modules/flow-log",
+		"version_constraint": ">= 1.0",
+	},
+}
+
+resources = {}

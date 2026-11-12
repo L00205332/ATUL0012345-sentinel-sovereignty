@@ -26,6 +26,11 @@ policy "metadata" {
   enforcement_level = "hard-mandatory"
 }
 
+policy "supply_chain" {
+  source            = "./supply_chain.sentinel"
+  enforcement_level = "hard-mandatory"
+}
+
 # Standards/cost control: warns, does not block. Deployed as its own advisory
 # policy, outside the hard-mandatory bundle.
 policy "instance_type" {
