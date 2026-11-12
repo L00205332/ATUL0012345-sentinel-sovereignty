@@ -1,0 +1,93 @@
+# metadata.sentinel
+#
+# Infrastructure security: mandatory IMDSv2 on EC2 instances and launch templates.
+#
+#   Rule 1 imdsv2_required          The instance metadata service either requires
+#                                   session tokens (http_tokens = "required") or is
+#                                   disabled. A missing metadata_options block
+#                                   fails: AWS would then allow IMDSv1 (fail safe).
+#   Rule 2 imds_hop_limit_restricted  The token response hop limit is at most 1, so
+#                                   containers or proxies on the host cannot obtain
+#                                   tokens for the instance role.
+#
+# Why: IMDSv1 answers any HTTP GET, so a server-side request forgery (SSRF) bug
+# in an application can read the instance role's temporary credentials. IMDSv2
+# needs a PUT with a token first, which SSRF normally cannot do.
+#
+# All top-level names use the md_ prefix (bundle-ready, see build-bundle.ps1).
+
+import "tfplan/v2" as tfplan
+import "strings"
+import "types"
+
+param md_max_hop_limit default 1
+
+md_types = ["aws_instance", "aws_launch_template"]
+
+md_changed = filter tfplan.resource_changes as _, rc {
+	rc.mode is "managed" and
+		rc.type in md_types and
+		strings.has_suffix(rc.provider_name else "", "hashicorp/aws") and
+		(rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+md_as_list = func(v) {
+	t = types.type_of(v)
+	if t is "list" {
+		return v
+	}
+	if t is "map" {
+		return [v]
+	}
+	return []
+}
+
+md_token_violations = []
+md_hop_violations = []
+
+for md_changed as md_addr, md_rc {
+	md_opts = md_as_list(md_rc.change.after.metadata_options else null)
+	if length(md_opts) is 0 {
+		append(md_token_violations, md_addr + " has no metadata_options: IMDSv1 would be allowed")
+	}
+	for md_opts as _, md_o {
+		md_endpoint = md_o.http_endpoint else "enabled"
+		if md_endpoint is not "disabled" {
+			md_tokens = md_o.http_tokens else "unset"
+			if md_tokens is not "required" {
+				append(md_token_violations, md_addr + " allows IMDSv1 (http_tokens = " + string(md_tokens) + ")")
+			}
+			md_hop = md_o.http_put_response_hop_limit else null
+			if types.type_of(md_hop) is not "int" or md_hop > md_max_hop_limit {
+				append(md_hop_violations, md_addr + " has http_put_response_hop_limit = " + string(md_hop else "unset") +
+					", maximum allowed is " +
+					string(md_max_hop_limit))
+			}
+		}
+	}
+}
+
+for md_token_violations as _, v {
+	print("FAIL imdsv2_required:", v)
+}
+for md_hop_violations as _, v {
+	print("FAIL imds_hop_limit_restricted:", v)
+}
+
+imdsv2_required = rule {
+	length(md_token_violations) is 0
+}
+
+imds_hop_limit_restricted = rule {
+	length(md_hop_violations) is 0
+}
+
+# Every rule is evaluated (no short-circuit), so the output lists all violations.
+main = rule {
+	all [
+		imdsv2_required,
+		imds_hop_limit_restricted,
+	] as r {
+		r
+	}
+}

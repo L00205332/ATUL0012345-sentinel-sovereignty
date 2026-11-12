@@ -1,0 +1,57 @@
+# instance_type.sentinel
+#
+# Infrastructure security / cost standard: approved EC2 instance types.
+#
+#   Rule instance_types_approved  aws_instance and aws_launch_template use a type
+#                                 from the approved list. A type unknown at plan
+#                                 time fails (fail safe).
+#
+# ADVISORY: this is a standards and cost control, not a security boundary, so a
+# failure warns instead of blocking. It is deployed as its own advisory policy
+# (not part of the hard-mandatory bundle), which also demonstrates a second
+# enforcement level within the HCP Free tier limit of one mandatory policy.
+#
+# Top-level names use the it_ prefix (bundle-ready if it is ever made mandatory).
+
+import "tfplan/v2" as tfplan
+import "strings"
+import "types"
+
+# Small burstable types: enough for this workload, cheap, current generation.
+param it_approved_types default ["t3.micro", "t3.small", "t3a.micro", "t3a.small"]
+
+it_changed = filter tfplan.resource_changes as _, rc {
+	rc.mode is "managed" and
+		rc.type in ["aws_instance", "aws_launch_template"] and
+		strings.has_suffix(rc.provider_name else "", "hashicorp/aws") and
+		(rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+it_violations = []
+
+for it_changed as it_addr, it_rc {
+	it_type = it_rc.change.after.instance_type else null
+	if types.type_of(it_type) is "string" {
+		if not (it_type in it_approved_types) {
+			append(it_violations, it_addr + " uses " + it_type)
+		}
+	} else if (it_rc.change.after_unknown.instance_type else false) is true {
+		append(it_violations, it_addr + " has an instance type unknown at plan time")
+	} else if it_rc.type is "aws_instance" {
+		append(it_violations, it_addr + " has no instance type")
+	}
+	# A launch template without instance_type is fine: the type is then chosen
+	# where the template is used (and checked there).
+}
+
+for it_violations as _, v {
+	print("WARN instance_types_approved:", v, "- approved:", it_approved_types)
+}
+
+instance_types_approved = rule {
+	length(it_violations) is 0
+}
+
+main = rule {
+	instance_types_approved
+}

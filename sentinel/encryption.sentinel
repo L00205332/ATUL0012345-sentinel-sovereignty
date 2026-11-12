@@ -1,0 +1,190 @@
+# encryption.sentinel
+#
+# Infrastructure security: encrypted EBS storage with customer-managed keys.
+#
+#   Rule 1 ebs_encrypted             Every EBS volume, instance root/extra disk,
+#                                    launch template disk and snapshot copy is
+#                                    explicitly encrypted.
+#   Rule 2 ebs_customer_managed_key  ...with a customer-managed KMS key set in the
+#                                    code, not the AWS-managed default key.
+#
+# Why two imports:
+#   - tfplan/v2 gives the planned `encrypted` value.
+#   - The key cannot be judged from the plan: when kms_key_id references a key
+#     created in the same plan it is "unknown", and when it is not set at all
+#     AWS also fills it in at apply time, so it is "unknown" too. Only the
+#     configuration (tfconfig/v2) shows whether a key was actually set.
+#
+# Encryption must be explicit: account-level "EBS encryption by default" is a
+# setting Sentinel cannot see, so it is not relied on (fail safe).
+# Snapshots (aws_ebs_snapshot) inherit encryption from their volume, whose
+# `encrypted` is unknown at plan time, so they are covered through the volume.
+#
+# All top-level names use the enc_ prefix so the policy can be bundled with the
+# others (scripts/build-bundle.ps1) without name clashes.
+
+import "tfplan/v2" as tfplan
+import "tfconfig/v2" as tfconfig
+import "strings"
+import "types"
+
+# kms_key_id values that point at an AWS-managed key, not a customer-managed one.
+param enc_aws_managed_key_markers default ["alias/aws/"]
+
+enc_disk_types = ["aws_ebs_volume", "aws_ebs_snapshot_copy"]
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+enc_changed = filter tfplan.resource_changes as _, rc {
+	rc.mode is "managed" and
+		strings.has_suffix(rc.provider_name else "", "hashicorp/aws") and
+		(rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+enc_as_list = func(v) {
+	t = types.type_of(v)
+	if t is "list" {
+		return v
+	}
+	if t is "map" {
+		return [v]
+	}
+	return []
+}
+
+# "module.vpc.aws_vpc.this[0]" -> "module.vpc.aws_vpc.this" (tfconfig address)
+enc_config_address = func(address) {
+	parts = []
+	for strings.split(address, ".") as p {
+		append(parts, strings.split(p, "[")[0])
+	}
+	return strings.join(parts, ".")
+}
+
+enc_config_of = func(rc) {
+	res = tfconfig.resources[enc_config_address(rc.address)] else null
+	if types.type_of(res) is not "map" {
+		return {}
+	}
+	return res.config else {}
+}
+
+enc_is_true = func(v) {
+	return v is true or v is "true"
+}
+
+# A config attribute sets a customer-managed key when it references something
+# (e.g. aws_kms_key.primary.arn) or is a constant that is not an AWS-managed alias.
+enc_key_set = func(attr) {
+	if types.type_of(attr) is not "map" {
+		return false
+	}
+	if length(attr.references else []) > 0 {
+		return true
+	}
+	c = attr.constant_value else null
+	if types.type_of(c) is not "string" or c is "" {
+		return false
+	}
+	return not any enc_aws_managed_key_markers as m { c contains m }
+}
+
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
+
+enc_unencrypted = []
+enc_no_cmk = []
+
+for enc_changed as enc_addr, enc_rc {
+	enc_after = enc_rc.change.after
+	enc_cfg = enc_config_of(enc_rc)
+
+	# Standalone volumes and DR snapshot copies.
+	if enc_rc.type in enc_disk_types {
+		if not enc_is_true(enc_after.encrypted else false) {
+			append(enc_unencrypted, enc_addr + " is not encrypted")
+		}
+		if not enc_key_set(enc_cfg.kms_key_id else null) {
+			append(enc_no_cmk, enc_addr + " has no customer-managed kms_key_id")
+		}
+	}
+
+	# Instance disks: the root disk must be configured, and every disk encrypted.
+	if enc_rc.type is "aws_instance" {
+		enc_roots = enc_as_list(enc_after.root_block_device else null)
+		if length(enc_roots) is 0 {
+			append(enc_unencrypted, enc_addr + " has no root_block_device: root disk encryption is not guaranteed")
+		}
+		for enc_roots as _, enc_disk {
+			if not enc_is_true(enc_disk.encrypted else false) {
+				append(enc_unencrypted, enc_addr + ".root_block_device is not encrypted")
+			}
+		}
+		for enc_as_list(enc_after.ebs_block_device else null) as _, enc_disk {
+			if not enc_is_true(enc_disk.encrypted else false) {
+				append(enc_unencrypted, enc_addr + ".ebs_block_device " + string(enc_disk.device_name else "") + " is not encrypted")
+			}
+		}
+
+		enc_cfg_roots = enc_as_list(enc_cfg.root_block_device else null)
+		if length(enc_cfg_roots) is 0 {
+			append(enc_no_cmk, enc_addr + ".root_block_device has no customer-managed kms_key_id")
+		}
+		for enc_cfg_roots as _, enc_disk {
+			if not enc_key_set(enc_disk.kms_key_id else null) {
+				append(enc_no_cmk, enc_addr + ".root_block_device has no customer-managed kms_key_id")
+			}
+		}
+		for enc_as_list(enc_cfg.ebs_block_device else null) as _, enc_disk {
+			if not enc_key_set(enc_disk.kms_key_id else null) {
+				append(enc_no_cmk, enc_addr + ".ebs_block_device has no customer-managed kms_key_id")
+			}
+		}
+	}
+
+	# Launch templates: every EBS mapping (encrypted is a string there: "true").
+	if enc_rc.type is "aws_launch_template" {
+		for enc_as_list(enc_after.block_device_mappings else null) as _, enc_bdm {
+			for enc_as_list(enc_bdm.ebs else null) as _, enc_disk {
+				if not enc_is_true(enc_disk.encrypted else false) {
+					append(enc_unencrypted, enc_addr + " block device " + string(enc_bdm.device_name else "") + " is not encrypted")
+				}
+			}
+		}
+		for enc_as_list(enc_cfg.block_device_mappings else null) as _, enc_bdm {
+			for enc_as_list(enc_bdm.ebs else null) as _, enc_disk {
+				if not enc_key_set(enc_disk.kms_key_id else null) {
+					append(enc_no_cmk, enc_addr + " block device has no customer-managed kms_key_id")
+				}
+			}
+		}
+	}
+}
+
+for enc_unencrypted as _, v {
+	print("FAIL ebs_encrypted:", v)
+}
+for enc_no_cmk as _, v {
+	print("FAIL ebs_customer_managed_key:", v)
+}
+
+ebs_encrypted = rule {
+	length(enc_unencrypted) is 0
+}
+
+ebs_customer_managed_key = rule {
+	length(enc_no_cmk) is 0
+}
+
+# Every rule is evaluated (no short-circuit), so the output lists all violations.
+main = rule {
+	all [
+		ebs_encrypted,
+		ebs_customer_managed_key,
+	] as r {
+		r
+	}
+}
