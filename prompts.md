@@ -151,6 +151,16 @@ Recorded the run, the policy output and the explanation of how enforcement preve
 
 **What the AI did:** Confirmed PR #9 is closed without merging and `main` is unchanged. Scanned the new mocks: no credentials, but the plan and state contained the AWS account ID (330×) and the instance's public IP/DNS, because the stack was running. Redacted them with AWS documentation values, since no policy reads them. Added `fail-real-offregion.hcl`, which reproduces the same 4 FAIL lines as the HCP run (21/21 PASS, bundle tests PASS). Documented the result and the mock-redaction lesson in the README.
 
+### Prompt 19 (2026-11-11)
+> yes, go ahead and write an unencrypted volume, IMDSv1 and t3.large (advisory: the run continues, with a warning) policies
+
+**What the AI did:** Inspected the real plan and config first. `kms_key_id` is unknown in the plan both when it references a new key and when it isn't set, so key checks must read `tfconfig/v2`. Wrote three policies, all with `enc_`/`md_`/`it_`-prefixed names so they can be bundled:
+- `encryption.sentinel` (hard-mandatory): `ebs_encrypted` from tfplan, `ebs_customer_managed_key` from tfconfig, covering volumes, instance root/extra disks, launch templates and snapshot copies, with a fail-safe for an unconfigured root disk
+- `metadata.sentinel` (hard-mandatory): `imdsv2_required`, `imds_hop_limit_restricted`, with a missing `metadata_options` failing
+- `instance_type.sentinel` (advisory): approved list, unknown type fails safe
+
+Generated 17 hand-written tfplan+tfconfig mocks with a script, and added real-plan tests. `strings.contains` doesn't exist in Sentinel, so the `contains` operator is used instead. Added the real config mock to the existing real-plan tests. Extended `build-bundle.ps1` with empty mocks for imports a test doesn't mock, and with a name-clash check for loop variables. Result: 40/40 policy tests and 36/36 bundle tests (4 policies, 11 rules). Mutation tests on metadata and encryption were caught. Updated `sentinel.hcl` (instance_type advisory) and the README.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->
