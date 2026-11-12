@@ -1,0 +1,18 @@
+# Configuration for: Non-compliant: encrypted = true but no kms_key_id at all, so AWS picks its default key.
+resources = {
+	"aws_ebs_volume.data": {
+		"address":        "aws_ebs_volume.data",
+		"type":           "aws_ebs_volume",
+		"mode":           "managed",
+		"module_address": "",
+		"config": {
+			"encrypted": {
+				"constant_value": true,
+			},
+		},
+	},
+}
+
+providers = {}
+
+module_calls = {}

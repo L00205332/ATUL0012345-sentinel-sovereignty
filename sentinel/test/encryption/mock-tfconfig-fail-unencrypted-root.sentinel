@@ -1,0 +1,25 @@
+# Configuration for: Non-compliant: instance root disk not encrypted.
+resources = {
+	"aws_instance.app": {
+		"address":        "aws_instance.app",
+		"type":           "aws_instance",
+		"mode":           "managed",
+		"module_address": "",
+		"config": {
+			"instance_type": {
+				"constant_value": "t3.micro",
+			},
+			"root_block_device": [
+				{
+					"encrypted": {
+						"constant_value": false,
+					},
+				},
+			],
+		},
+	},
+}
+
+providers = {}
+
+module_calls = {}

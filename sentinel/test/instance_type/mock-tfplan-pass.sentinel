@@ -1,0 +1,97 @@
+# Compliant: t3.micro instance, t3.small launch template, and a launch template without a type.
+resource_changes = {
+	"aws_instance.app": {
+		"address":       "aws_instance.app",
+		"type":          "aws_instance",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region":        "eu-west-1",
+				"instance_type": "t3.micro",
+				"metadata_options": [
+					{
+						"http_endpoint":               "enabled",
+						"http_tokens":                 "required",
+						"http_put_response_hop_limit": 1,
+					},
+				],
+				"root_block_device": [
+					{
+						"encrypted":   true,
+						"volume_size": 8,
+					},
+				],
+			},
+			"after_unknown": {},
+		},
+	},
+	"aws_launch_template.app": {
+		"address":       "aws_launch_template.app",
+		"type":          "aws_launch_template",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-west-1",
+				"block_device_mappings": [
+					{
+						"device_name": "/dev/xvda",
+						"ebs": [
+							{
+								"encrypted": "true",
+							},
+						],
+					},
+				],
+				"metadata_options": [
+					{
+						"http_endpoint":               "enabled",
+						"http_tokens":                 "required",
+						"http_put_response_hop_limit": 1,
+					},
+				],
+				"instance_type": "t3.small",
+			},
+			"after_unknown": {},
+		},
+	},
+	"aws_launch_template.generic": {
+		"address":       "aws_launch_template.generic",
+		"type":          "aws_launch_template",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region": "eu-west-1",
+				"block_device_mappings": [
+					{
+						"device_name": "/dev/xvda",
+						"ebs": [
+							{
+								"encrypted": "true",
+							},
+						],
+					},
+				],
+				"metadata_options": [
+					{
+						"http_endpoint":               "enabled",
+						"http_tokens":                 "required",
+						"http_put_response_hop_limit": 1,
+					},
+				],
+			},
+			"after_unknown": {},
+		},
+	},
+}

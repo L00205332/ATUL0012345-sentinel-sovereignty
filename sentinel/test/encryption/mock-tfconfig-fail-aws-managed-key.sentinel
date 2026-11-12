@@ -1,0 +1,21 @@
+# Configuration for: Non-compliant: encrypted, but with the AWS-managed alias/aws/ebs key (not customer-managed).
+resources = {
+	"aws_ebs_volume.data": {
+		"address":        "aws_ebs_volume.data",
+		"type":           "aws_ebs_volume",
+		"mode":           "managed",
+		"module_address": "",
+		"config": {
+			"encrypted": {
+				"constant_value": true,
+			},
+			"kms_key_id": {
+				"constant_value": "alias/aws/ebs",
+			},
+		},
+	},
+}
+
+providers = {}
+
+module_calls = {}

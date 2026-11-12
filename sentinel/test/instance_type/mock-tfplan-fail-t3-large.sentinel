@@ -1,0 +1,32 @@
+# Non-compliant (advisory): t3.large is not on the approved list.
+resource_changes = {
+	"aws_instance.app": {
+		"address":       "aws_instance.app",
+		"type":          "aws_instance",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region":        "eu-west-1",
+				"instance_type": "t3.large",
+				"metadata_options": [
+					{
+						"http_endpoint":               "enabled",
+						"http_tokens":                 "required",
+						"http_put_response_hop_limit": 1,
+					},
+				],
+				"root_block_device": [
+					{
+						"encrypted":   true,
+						"volume_size": 8,
+					},
+				],
+			},
+			"after_unknown": {},
+		},
+	},
+}

@@ -1,0 +1,21 @@
+# Non-compliant: EBS volume with encrypted = false and no key.
+resource_changes = {
+	"aws_ebs_volume.data": {
+		"address":       "aws_ebs_volume.data",
+		"type":          "aws_ebs_volume",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region":    "eu-west-1",
+				"encrypted": false,
+			},
+			"after_unknown": {
+				"kms_key_id": true,
+			},
+		},
+	},
+}

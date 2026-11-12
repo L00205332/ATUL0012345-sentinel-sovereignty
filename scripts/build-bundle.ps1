@@ -124,6 +124,20 @@ foreach ($p in $mandatory) {
                   (($body -join "`n").Trim()))
 }
 
+# Indented assignments inside top-level for loops are top-level variables too
+# (Sentinel loops have no scope of their own), so they must not reuse a name
+# that another bundled policy defines at the top level.
+foreach ($p in $mandatory) {
+    foreach ($line in Get-Content $p.Path) {
+        if ($line -match '^\s+(?<n>[A-Za-z_][A-Za-z0-9_]*)\s*=[^=]') {
+            $n = $Matches["n"]
+            if ($owner.ContainsKey($n) -and $owner[$n] -ne $p.Name) {
+                throw "Name clash: $($p.Name) assigns '$n', which $($owner[$n]) defines at the top level. Rename it in $($p.Name)."
+            }
+        }
+    }
+}
+
 # --- 4. Write the bundle ----------------------------------------------------------------
 if (Test-Path $buildDir) { Remove-Item $buildDir -Recurse -Force }
 New-Item -ItemType Directory -Force $testDir | Out-Null
@@ -148,6 +162,23 @@ $bundle = $header + "`n`n" + ($imports -join "`n") + "`n`n" + ($params -join "`n
 [IO.File]::WriteAllText($bundleSrc, $bundle, (New-Object System.Text.UTF8Encoding $false))
 
 # --- 5. Bundle tests ---------------------------------------------------------------------
+# The bundle imports what ALL its policies import. A test written for one policy
+# may not mock every one of them (e.g. network tests have no tfconfig/v2 mock),
+# so an empty mock is added for any missing Terraform import.
+$emptyMocks = @{
+    "tfplan/v2"   = "resource_changes = {}`n`nresource_drift = {}`n`noutput_changes = {}`n`nvariables = {}"
+    "tfconfig/v2" = "resources = {}`n`nproviders = {}`n`nmodule_calls = {}`n`nvariables = {}`n`noutputs = {}"
+    "tfstate/v2"  = "resources = {}`n`noutputs = {}"
+    "tfrun"       = "workspace = {}`n`norganization = {}"
+}
+$needed = @($imports | ForEach-Object { [regex]::Match($_, '^import\s+"(?<i>[^"]+)"').Groups["i"].Value } |
+            Where-Object { $emptyMocks.ContainsKey($_) })
+foreach ($i in $needed) {
+    $file = "mock-empty-" + ($i -replace '/', '-') + ".sentinel"
+    [IO.File]::WriteAllText((Join-Path $testDir $file), "# Empty mock for $i (test did not mock it)`n" + $emptyMocks[$i] + "`n",
+        (New-Object System.Text.UTF8Encoding $false))
+}
+
 foreach ($p in $mandatory) {
     $srcTests = Join-Path $sentinel "test\$($p.Name)"
     if (-not (Test-Path $srcTests)) { throw "$($p.Name) has no tests in test\$($p.Name): it cannot be bundled untested." }
@@ -168,6 +199,12 @@ foreach ($p in $mandatory) {
         }
         $newRules = "rules = {`n" + (($expected.Keys | ForEach-Object { "    $_ = $($expected[$_])" }) -join "`n") + "`n  }"
         $text = [regex]::Replace($text, 'rules\s*=\s*\{[^}]*\}', $newRules)
+        foreach ($i in $needed) {
+            if ($text -notmatch ('mock\s+"' + [regex]::Escape($i) + '"')) {
+                $file = "mock-empty-" + ($i -replace '/', '-') + ".sentinel"
+                $text = "mock `"$i`" {`n  module {`n    source = `"$file`"`n  }`n}`n`n" + $text
+            }
+        }
         $text = "# Generated from test/$($p.Name)/$($t.Name)`n" + $text
         [IO.File]::WriteAllText((Join-Path $testDir "$($p.Name)-$($t.Name)"), $text, (New-Object System.Text.UTF8Encoding $false))
     }

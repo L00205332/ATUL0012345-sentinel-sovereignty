@@ -38,16 +38,16 @@ Context: Ireland signed the *Declaration for European Digital Sovereignty* (2025
 │   ├── destroy.ps1                    ✅ destroy run via HCP API → confirm → wait → audit
 │   └── audit-regions.ps1              ✅ leftovers in EU regions + off-region drift (us-east-1)
 ├── sentinel/
-│   ├── sentinel.hcl                   ✅ the single policy set (network so far; others added as built)
+│   ├── sentinel.hcl                   ✅ every policy + its enforcement level (drives the bundle)
 │   ├── network.sentinel               ✅
 │   ├── sovereignty.sentinel           ✅
 │   ├── supply_chain.sentinel          ⏳
-│   ├── instance_type.sentinel         ⏳
-│   ├── encryption.sentinel            ⏳
-│   ├── metadata.sentinel              ⏳
+│   ├── instance_type.sentinel         ✅ advisory
+│   ├── encryption.sentinel            ✅
+│   ├── metadata.sentinel              ✅
 │   ├── mocks/compliant-baseline/      ✅ REAL mocks downloaded from HCP run run-Xz7zmhMJKXVNHwa3
 │   ├── mocks/offregion-snapshot/      ✅ REAL mocks from the blocked PR #9 run run-kwQg5XK3EGXKwPTs (redacted)
-│   └── test/<policy>/                 ✅ network, sovereignty · ⏳ others: *.hcl test cases + mock-*.sentinel
+│   └── test/<policy>/                 ✅ network, sovereignty, encryption, metadata, instance_type · ⏳ supply_chain
 ├── terraform/
 │   ├── versions.tf                    ✅ Terraform/provider constraints + HCP cloud block
 │   ├── providers.tf                   ✅ AWS provider (eu-west-1) + default tags
@@ -174,8 +174,38 @@ Design decisions:
 5. **Configurable.** `param public_ingress_ports` can be changed in `sentinel.hcl` without editing the policy.
 6. **Egress out of scope.** Outbound allow-all is the AWS default, and the brief targets inbound access.
 
-#### EC2 instance types, EBS encryption, IMDSv2
-_TODO_
+#### Encryption: [`sentinel/encryption.sentinel`](sentinel/encryption.sentinel) ✅ (hard-mandatory, in the bundle)
+
+| Rule | Enforces |
+|---|---|
+| `ebs_encrypted` | `aws_ebs_volume`, `aws_ebs_snapshot_copy`, the instance `root_block_device` and `ebs_block_device`, and launch template EBS mappings are explicitly `encrypted`. An instance without a `root_block_device` fails (fail safe) |
+| `ebs_customer_managed_key` | The same disks set a **customer-managed** `kms_key_id` in the code: a reference to a key, or a key ARN, never an `alias/aws/…` AWS-managed key |
+
+Design decisions:
+1. **Two imports, because the plan can't tell the keys apart.** In the real plan, `kms_key_id` is *unknown* for a key created in the same run. If no key is set at all, AWS also fills one in at apply time, so it's unknown too. Only `tfconfig/v2` shows whether a key was written in the code (`references: ["aws_kms_key.primary.arn"]`), so the encryption check uses `tfplan` and the key check uses `tfconfig`.
+2. **Explicit encryption only.** The account setting "EBS encryption by default" is invisible to Sentinel, so it isn't relied on.
+3. **Snapshots are covered through their volume.** An `aws_ebs_snapshot`'s `encrypted` is unknown at plan time (inherited); the DR **copy** sets its own key and is checked directly.
+4. **Why customer-managed keys:** they serve sovereignty as well as security. The organisation owns the key policy, the key stays in its region, and scheduling deletion makes every copy unreadable.
+
+#### IMDSv2: [`sentinel/metadata.sentinel`](sentinel/metadata.sentinel) ✅ (hard-mandatory, in the bundle)
+
+| Rule | Enforces |
+|---|---|
+| `imdsv2_required` | `aws_instance` and `aws_launch_template` have `http_tokens = "required"`, or the metadata endpoint is disabled. A **missing `metadata_options` block fails**, because AWS would then allow IMDSv1 |
+| `imds_hop_limit_restricted` | `http_put_response_hop_limit` ≤ 1 (`param md_max_hop_limit`), so containers or proxies on the host cannot get tokens |
+
+**Why:** IMDSv1 answers any HTTP GET. A server-side request forgery bug in an application can therefore read the instance role's temporary credentials. IMDSv2 requires a PUT to get a session token first, which an SSRF normally can't do. Some newer AMIs default to IMDSv2, but that's an AMI property Sentinel can't see, so the policy requires it explicitly.
+
+#### Instance types: [`sentinel/instance_type.sentinel`](sentinel/instance_type.sentinel) ✅ (**advisory**, separate policy)
+
+| Rule | Enforces |
+|---|---|
+| `instance_types_approved` | `aws_instance` / `aws_launch_template` type in `t3.micro`, `t3.small`, `t3a.micro`, `t3a.small` (`param it_approved_types`). An unknown type warns (fail safe); a launch template without a type is allowed |
+
+**Why advisory:** it's a cost and standards control, not a security boundary. HCP Free allows only one mandatory policy, which the bundle uses, so it also demonstrates a second enforcement level. The output says `WARN`, and the run continues.
+
+#### Bundle-readiness
+All three new policies prefix every top-level name (`enc_`, `md_`, `it_`), including loop variables. Sentinel `for` loops at the top level have no scope of their own, so a loop variable in one policy could silently overwrite a value with the same name in another bundled policy. `build-bundle.ps1` now checks for that too.
 
 ### 4.4 Enforcement levels
 
@@ -186,9 +216,9 @@ Levels are set per policy in `sentinel.hcl` (✅ = built):
 | sovereignty ✅ | hard-mandatory | part of **`atul0012345-guardrails`** (hard-mandatory) | Legal/jurisdictional requirement, no override |
 | network ✅ | hard-mandatory | part of `atul0012345-guardrails` | Public SSH is a direct attack surface |
 | supply_chain | hard-mandatory | part of `atul0012345-guardrails` | An untrusted provider or module can compromise everything |
-| encryption | hard-mandatory | part of `atul0012345-guardrails` | Data protection baseline |
-| metadata (IMDSv2) | hard-mandatory | part of `atul0012345-guardrails` | Blocks credential theft via SSRF |
-| instance_type | **advisory** | separate advisory policy | Cost/standards control: warns, doesn't block |
+| encryption ✅ | hard-mandatory | part of `atul0012345-guardrails` | Data protection baseline |
+| metadata (IMDSv2) ✅ | hard-mandatory | part of `atul0012345-guardrails` | Blocks credential theft via SSRF |
+| instance_type ✅ | **advisory** | separate advisory policy | Cost/standards control: warns, doesn't block |
 
 **Why one bundled policy:** HCP Free allows **only one mandatory policy per organisation** (`403: The organization has reached the limit of 1 mandatory policy`). Making only sovereignty mandatory would have left the infrastructure security controls as warnings. Instead, `scripts/build-bundle.ps1` merges every mandatory policy into one hard-mandatory policy, so **all of them block**.
 - The repo keeps one file per control area, each with its own tests, matching the brief's structure.
@@ -207,7 +237,8 @@ Levels are set per policy in `sentinel.hcl` (✅ = built):
    - synthetic pass cases must keep that policy's rules true
    - **real-plan** cases (`pass-real*`) must pass the whole bundle
    
-   Result: 20/20 PASS.
+   Result: 36/36 PASS (4 bundled policies, 11 rules).
+5. Tests that don't mock an import the bundle uses (e.g. network tests have no `tfconfig/v2`) get an empty mock for it, and a loop variable that reuses another policy's top-level name stops the build.
 
 ## 5. How to run
 
@@ -321,7 +352,29 @@ _TODO: generating `tfplan`._
 | sovereignty | `fail-external-admin-trust.hcl` | IAM role trusts another AWS account | false (trust ❌) | ✅ PASS |
 | sovereignty | `fail-public-trust.hcl` | IAM role trusts `"*"` | false (trust ❌) | ✅ PASS |
 
-**Mutation test:** with `us-east-1` temporarily added to `approved_regions`, 4 sovereignty tests failed, so a weakened policy cannot pass `sentinel test`, and the upload script refuses to deploy it.
+| encryption | `pass-real-baseline.hcl` | **Real plan + config**: volume, root disk and DR copy all encrypted with CMK references | true | ✅ PASS |
+| encryption | `pass.hcl` | CMK volume, instance root, DR copy with constant CMK ARN, launch template disk, deletion of an old unencrypted volume | true | ✅ PASS |
+| encryption | `fail-unencrypted-volume.hcl` | `encrypted = false`, no key | false (encrypted ❌, CMK ❌) | ✅ PASS |
+| encryption | `fail-aws-managed-key.hcl` | Encrypted with `alias/aws/ebs` | false (encrypted ✅, CMK ❌) | ✅ PASS |
+| encryption | `fail-default-key.hcl` | Encrypted, no `kms_key_id` (AWS default key) | false (CMK ❌) | ✅ PASS |
+| encryption | `fail-unencrypted-root.hcl` | Instance root disk not encrypted | false | ✅ PASS |
+| encryption | `fail-root-not-configured.hcl` | No `root_block_device` (fail safe) | false | ✅ PASS |
+| encryption | `fail-unencrypted-copy.hcl` | DR snapshot copy not encrypted | false | ✅ PASS |
+| encryption | `fail-launch-template-unencrypted.hcl` | Launch template disk `encrypted = "false"` | false | ✅ PASS |
+| metadata | `pass-real-baseline.hcl` | **Real plan**: `http_tokens = required`, hop limit 1 | true | ✅ PASS |
+| metadata | `pass.hcl` | IMDSv2 instance + launch template; instance with IMDS disabled | true | ✅ PASS |
+| metadata | `fail-imdsv1-optional.hcl` | `http_tokens = "optional"` | false (IMDSv2 ❌, hop ✅) | ✅ PASS |
+| metadata | `fail-no-metadata-options.hcl` | No `metadata_options` (fail safe) | false | ✅ PASS |
+| metadata | `fail-hop-limit-2.hcl` | IMDSv2 but hop limit 2 | false (IMDSv2 ✅, hop ❌) | ✅ PASS |
+| metadata | `fail-launch-template-imdsv1.hcl` | Launch template allows IMDSv1 | false | ✅ PASS |
+| instance_type | `pass-real-baseline.hcl` | **Real plan**: `t3.micro` | true | ✅ PASS |
+| instance_type | `pass.hcl` | `t3.micro` instance, `t3.small` template, template without type | true | ✅ PASS |
+| instance_type | `fail-t3-large.hcl` | `t3.large` (advisory) | false | ✅ PASS |
+| instance_type | `fail-unknown-type.hcl` | Type unknown at plan time (fail safe) | false | ✅ PASS |
+
+**Mutation tests:** with `us-east-1` added to the approved regions, 4 sovereignty tests failed; with IMDSv1 accepted, 2 metadata tests failed; with AWS-managed keys accepted, 1 encryption test failed. A weakened policy cannot pass `sentinel test`, and the upload script refuses to deploy it.
+
+**Totals:** 40/40 policy tests and 36/36 bundle tests PASS.
 
 ### HCP Terraform runs
 
@@ -391,7 +444,7 @@ _TODO_
 Points identified so far:
 - Values computed during apply (e.g. a CIDR taken from another resource) are unknown at plan time, so a policy can only partially judge them (see network decision 4).
 - Sentinel cannot see changes made outside Terraform (drift).
-- Some security-relevant values are unknown until apply (e.g. a snapshot's `encrypted`, inherited from its volume). Policies have to check the place where the value *is* known, which takes knowledge of each resource type.
+- Some security-relevant values are unknown until apply (e.g. a snapshot's `encrypted`, inherited from its volume; any `kms_key_id` that references a key created in the same run). Policies have to check the place where the value *is* known, which takes knowledge of each resource type.
 - Sentinel sees only the configuration we wrote: a module's internal provider requirements and nested dependencies don't appear in `tfconfig/v2`.
 - Policies also run on **destroy** plans. A policy must not block the removal of non-compliant resources, so the policies only evaluate resources being created or updated.
 

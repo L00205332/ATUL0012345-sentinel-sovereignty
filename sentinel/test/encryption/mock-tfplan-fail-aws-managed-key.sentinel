@@ -1,0 +1,21 @@
+# Non-compliant: encrypted, but with the AWS-managed alias/aws/ebs key (not customer-managed).
+resource_changes = {
+	"aws_ebs_volume.data": {
+		"address":       "aws_ebs_volume.data",
+		"type":          "aws_ebs_volume",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region":    "eu-west-1",
+				"encrypted": true,
+			},
+			"after_unknown": {
+				"kms_key_id": true,
+			},
+		},
+	},
+}

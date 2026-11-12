@@ -1,0 +1,21 @@
+# Non-compliant: DR snapshot copy not encrypted.
+resource_changes = {
+	"aws_ebs_snapshot_copy.dr": {
+		"address":       "aws_ebs_snapshot_copy.dr",
+		"type":          "aws_ebs_snapshot_copy",
+		"mode":          "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {
+			"actions": [
+				"create",
+			],
+			"after": {
+				"region":    "eu-west-1",
+				"encrypted": false,
+			},
+			"after_unknown": {
+				"kms_key_id": true,
+			},
+		},
+	},
+}

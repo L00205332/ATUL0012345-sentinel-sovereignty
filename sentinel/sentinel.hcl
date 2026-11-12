@@ -15,3 +15,20 @@ policy "network" {
   source            = "./network.sentinel"
   enforcement_level = "hard-mandatory"
 }
+
+policy "encryption" {
+  source            = "./encryption.sentinel"
+  enforcement_level = "hard-mandatory"
+}
+
+policy "metadata" {
+  source            = "./metadata.sentinel"
+  enforcement_level = "hard-mandatory"
+}
+
+# Standards/cost control: warns, does not block. Deployed as its own advisory
+# policy, outside the hard-mandatory bundle.
+policy "instance_type" {
+  source            = "./instance_type.sentinel"
+  enforcement_level = "advisory"
+}
