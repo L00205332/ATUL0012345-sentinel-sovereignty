@@ -1,0 +1,193 @@
+# supply_chain.sentinel
+#
+# IaC supply chain security: only trusted, pinned code may run.
+#
+#   Rule 1 providers_from_approved_sources  Every provider that is configured OR
+#                                           used by a resource/data source comes
+#                                           from an approved source address. Using
+#                                           the plan as well catches providers that
+#                                           have no provider block at all.
+#   Rule 2 provider_versions_approved       Each configured provider's version
+#                                           constraint is one of the approved
+#                                           constraints for that source (no missing
+#                                           or open-ended constraints).
+#   Rule 3 modules_from_trusted_sources     Module calls come from an approved
+#                                           registry namespace or a local path. Git,
+#                                           HTTP, S3 and other sources are rejected.
+#   Rule 4 modules_pinned                   Registry modules use an EXACT version
+#                                           ("6.0.0" or "= 6.0.0"), never a range.
+#                                           Modules are not recorded in
+#                                           .terraform.lock.hcl, so an exact pin in
+#                                           the code is the only thing that fixes
+#                                           which module code runs.
+#   Rule 5 terraform_version_approved       The plan was produced by an approved
+#                                           Terraform core version.
+#
+# What this policy CANNOT verify (see README 4.2 / 7.3): provider binary
+# checksums and signatures (the CLI checks them against .terraform.lock.hcl),
+# what a module's own code requires (its required_providers are not visible in
+# tfconfig/v2), the contents or maintainer of a module version, and the security
+# of the registry, the HCP platform or this repository.
+#
+# All top-level names use the sc_ prefix (bundle-ready, see build-bundle.ps1).
+
+import "tfplan/v2" as tfplan
+import "tfconfig/v2" as tfconfig
+import "strings"
+import "types"
+
+# Approved provider source address -> approved version constraints.
+param sc_approved_providers default {
+	"registry.terraform.io/hashicorp/aws": ["~> 6.0"],
+}
+
+# Approved module source prefixes (public registry namespace, or a private
+# registry such as "app.terraform.io/L00205332/").
+param sc_approved_module_prefixes default ["terraform-aws-modules/"]
+
+# Approved Terraform core versions (prefix match).
+param sc_approved_terraform_prefixes default ["1.17."]
+
+# Exact version: "6.0.0", "=6.0.0" or "= 6.0.0".
+sc_exact_version = "^=?\\s*[0-9]+\\.[0-9]+\\.[0-9]+$"
+
+sc_is_local = func(src) {
+	return strings.has_prefix(src, "./") or strings.has_prefix(src, "../")
+}
+
+# ---------------------------------------------------------------------------
+# Rule 1: provider sources (configuration AND actual use in the plan)
+# ---------------------------------------------------------------------------
+
+sc_source_violations = []
+
+for tfconfig.providers as sc_key, sc_p {
+	sc_name = sc_p.full_name else ""
+	if not (sc_name in keys(sc_approved_providers)) {
+		append(sc_source_violations, "provider \"" + sc_key + "\" in module \"" +
+			string(sc_p.module_address else "") +
+			"\" comes from " +
+			sc_name)
+	}
+}
+
+sc_used = {}
+for tfplan.resource_changes as sc_addr, sc_rc {
+	sc_used[sc_rc.provider_name else "unknown"] = sc_addr
+}
+for sc_used as sc_name, sc_example {
+	if not (sc_name in keys(sc_approved_providers)) {
+		append(sc_source_violations, "provider " + sc_name + " is used by " + sc_example +
+			" but is not an approved source")
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Rule 2: provider version constraints
+# ---------------------------------------------------------------------------
+
+sc_version_violations = []
+
+for tfconfig.providers as sc_key, sc_p {
+	sc_name = sc_p.full_name else ""
+	if sc_name in keys(sc_approved_providers) {
+		sc_constraint = strings.trim_space(sc_p.version_constraint else "")
+		if sc_constraint is "" {
+			append(sc_version_violations, "provider " + sc_name + " has no version constraint")
+		} else if not (sc_constraint in sc_approved_providers[sc_name]) {
+			append(sc_version_violations, "provider " + sc_name + " uses constraint \"" + sc_constraint +
+				"\", approved: " +
+				strings.join(sc_approved_providers[sc_name], ", "))
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Rules 3 + 4: module sources and pinning
+# ---------------------------------------------------------------------------
+
+sc_module_source_violations = []
+sc_module_pin_violations = []
+
+for tfconfig.module_calls as sc_key, sc_m {
+	sc_src = sc_m.source else ""
+	sc_where = "module \"" + (sc_m.name else sc_key) + "\""
+	if (sc_m.module_address else "") is not "" {
+		sc_where = sc_where + " in " + sc_m.module_address
+	}
+
+	if not sc_is_local(sc_src) {
+		sc_trusted = any sc_approved_module_prefixes as sc_prefix { strings.has_prefix(sc_src, sc_prefix) }
+		if not sc_trusted or sc_src contains "::" or sc_src contains "://" {
+			append(sc_module_source_violations, sc_where + " comes from untrusted source " + sc_src)
+		} else {
+			sc_ver = strings.trim_space(sc_m.version_constraint else "")
+			if not (sc_ver matches sc_exact_version) {
+				append(sc_module_pin_violations, sc_where + " (" + sc_src + ") is not pinned to an exact version: \"" +
+					sc_ver +
+					"\"")
+			}
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Rule 5: Terraform core version
+# ---------------------------------------------------------------------------
+
+sc_tf_version = tfplan.terraform_version else "unknown"
+sc_tf_ok = any sc_approved_terraform_prefixes as sc_prefix { strings.has_prefix(sc_tf_version, sc_prefix) }
+
+# ---------------------------------------------------------------------------
+# Output and rules
+# ---------------------------------------------------------------------------
+
+for sc_source_violations as _, v {
+	print("FAIL providers_from_approved_sources:", v)
+}
+for sc_version_violations as _, v {
+	print("FAIL provider_versions_approved:", v)
+}
+for sc_module_source_violations as _, v {
+	print("FAIL modules_from_trusted_sources:", v)
+}
+for sc_module_pin_violations as _, v {
+	print("FAIL modules_pinned:", v)
+}
+if not sc_tf_ok {
+	print("FAIL terraform_version_approved: plan produced by Terraform", sc_tf_version,
+		"- approved:", sc_approved_terraform_prefixes)
+}
+
+providers_from_approved_sources = rule {
+	length(sc_source_violations) is 0
+}
+
+provider_versions_approved = rule {
+	length(sc_version_violations) is 0
+}
+
+modules_from_trusted_sources = rule {
+	length(sc_module_source_violations) is 0
+}
+
+modules_pinned = rule {
+	length(sc_module_pin_violations) is 0
+}
+
+terraform_version_approved = rule {
+	sc_tf_ok
+}
+
+# Every rule is evaluated (no short-circuit), so the output lists all violations.
+main = rule {
+	all [
+		providers_from_approved_sources,
+		provider_versions_approved,
+		modules_from_trusted_sources,
+		modules_pinned,
+		terraform_version_approved,
+	] as r {
+		r
+	}
+}
