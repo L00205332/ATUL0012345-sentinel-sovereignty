@@ -339,7 +339,7 @@ Every claim in this section is backed by a screenshot in [`documentation/evidenc
 | 2 | [Sovereignty: DR copy outside the EU (PR #9)](#64-scenario-2-dr-copy-outside-the-eu-pr-9-blocked) | `dr_region = "us-east-1"` | **blocked** | ⛔ hard failed: `resources_in_approved_regions` ×3, `sensitive_data_resident` |
 | 3 | [Unencrypted EBS volume (PR #12)](#65-scenario-3-unencrypted-ebs-volume-pr-12-blocked) | `encrypted = false` | **blocked** | ⛔ hard failed: `ebs_encrypted` |
 | 4 | [IMDSv1 allowed (PR #13)](#66-scenario-4-imdsv1-allowed-pr-13-blocked-and-a-policy-bug-found) | `http_tokens = "optional"` | **blocked** | ⛔ hard failed: `imdsv2_required` (the first run also exposed a policy bug, now fixed) |
-| 5 | [Advisory: `t3.large`](#67-scenario-5-advisory-t3large) | `instance_type = "t3.large"` | **warn, not blocked** | ⏳ pending |
+| 5 | [Advisory: `t3.large` (PR #17)](#67-scenario-5-advisory-t3large) | `instance_type = "t3.large"` | **warn, not blocked** | ⚠️ advisory warning only; run **not** blocked, GitHub check green. Also exposed an unpinned-AMI replacement risk |
 | 6 | [Drift: manual `us-east-1` copy](#68-scenario-6-drift-manual-off-region-copy) | AWS CLI, outside Terraform | Sentinel can't see it; the audit flags `DRIFT` | ⏳ pending |
 
 **How a non-compliant change is prevented:**
@@ -364,9 +364,9 @@ HCP Terraform Free imposed three limits that shaped the design (see 4.4 and 5): 
 
 **The policy set as it evolved:** `network` alone → the bundle → the bundle plus the advisory `instance_type` policy. Each policy's description records the GitHub commit it was deployed from.
 
-| `network` only | Bundle | Bundle + advisory |
-|---|---|---|
-| <a href="documentation/evidence/08-policy-set-network-only.png"><img src="documentation/evidence/08-policy-set-network-only.png" width="280" alt="Policy set with network"></a> | <a href="documentation/evidence/09-policy-set-guardrails-bundle.png"><img src="documentation/evidence/09-policy-set-guardrails-bundle.png" width="280" alt="Policy set with guardrails"></a> | <a href="documentation/evidence/10-policy-set-guardrails-and-instance-type.png"><img src="documentation/evidence/10-policy-set-guardrails-and-instance-type.png" width="280" alt="Policy set with guardrails and instance_type"></a> |
+| `network` only | Bundle | Bundle + advisory | After the float fix (commit `b3c6a12`) |
+|---|---|---|---|
+| <a href="documentation/evidence/08-policy-set-network-only.png"><img src="documentation/evidence/08-policy-set-network-only.png" width="210" alt="Policy set with network"></a> | <a href="documentation/evidence/09-policy-set-guardrails-bundle.png"><img src="documentation/evidence/09-policy-set-guardrails-bundle.png" width="210" alt="Policy set with guardrails"></a> | <a href="documentation/evidence/10-policy-set-guardrails-and-instance-type.png"><img src="documentation/evidence/10-policy-set-guardrails-and-instance-type.png" width="210" alt="Policy set with guardrails and instance_type"></a> | <a href="documentation/evidence/32-policy-set-after-float-fix.png"><img src="documentation/evidence/32-policy-set-after-float-fix.png" width="210" alt="Policy set after float fix"></a> |
 
 **Policy deployment** (`scripts/upload-policies.ps1`): tests → bundle build → bundle tests → API upload, tagged with the git commit.
 
@@ -475,7 +475,39 @@ Observations:
 
 ### 6.7 Scenario 5: Advisory, `t3.large`
 
-_⏳ Pending. Expected: `atul0012345-guardrails` passes, `instance_type` (advisory) warns with `WARN instance_types_approved: aws_instance.app uses t3.large`, and the run is **not** blocked._
+**Change:** `instance_type = "t3.large"`. **Expected:** `atul0012345-guardrails` passes; `instance_type` (advisory) warns; the run is **not** blocked.
+
+| Run | Plan | Policy check | Outcome |
+|---|---|---|---|
+| Speculative plan for PR #17 | +5 / −5: the instance is **replaced** (see the finding below) | ⚠️ **"Sentinel policies passed", 1 advisory failed**: guardrails ✅, `instance_type` ⚠️ `WARN instance_types_approved: aws_instance.app uses t3.large` | ✅ **"Planned and finished"**: not blocked; GitHub "All checks have passed"; closed without merging |
+
+```
+Enforcement Mode: advisory
+WARN instance_types_approved: aws_instance.app uses t3.large - approved: ["t3.micro" "t3.small" "t3a.micro" "t3a.small"]
+```
+
+| Policy check: passed with 1 advisory failure | Advisory log |
+|---|---|
+| <a href="documentation/evidence/28-pr17-t3large-policy-passed-advisory.png"><img src="documentation/evidence/28-pr17-t3large-policy-passed-advisory.png" width="420" alt="PR 17 policy passed with advisory failure"></a> | <a href="documentation/evidence/29-pr17-t3large-advisory-warn-log.png"><img src="documentation/evidence/29-pr17-t3large-advisory-warn-log.png" width="420" alt="PR 17 advisory WARN log"></a> |
+| **GitHub: all checks passed, merge enabled** | **Plan: +5 / −5** |
+| <a href="documentation/evidence/30-pr17-t3large-github-checks-passed.png"><img src="documentation/evidence/30-pr17-t3large-github-checks-passed.png" width="420" alt="PR 17 GitHub checks passed"></a> | <a href="documentation/evidence/31-pr17-t3large-plan-instance-replaced.png"><img src="documentation/evidence/31-pr17-t3large-plan-instance-replaced.png" width="420" alt="PR 17 plan +5 -5"></a> |
+
+**Hard-mandatory vs advisory, side by side:**
+
+| | Scenarios 2–4 (hard-mandatory bundle) | Scenario 5 (advisory) |
+|---|---|---|
+| HCP policy result | ❌ "Sentinel policies **hard failed**" | ⚠️ "Sentinel policies **passed**", 1 advisory failed |
+| Run | ⛔ Errored | ✅ Planned and finished |
+| GitHub check | ❌ "All checks have failed" | ✅ "All checks have passed" |
+
+**Risk of advisory enforcement:** GitHub shows a **green** check with **no sign of the warning**; a reviewer has to open HCP to see it. Merging would trigger a real run that the advisory policy cannot stop, and a `t3.large` would be deployed. That's acceptable for a cost/standards control, and exactly why security and sovereignty controls are hard-mandatory.
+
+**Finding: an unpinned AMI made every plan replace the instance and the sensitive data volume.** A resize was expected to be an in-place update (`~1`), but the plan was **+5 / −5**: `aws_instance.app ami: … Forces replacement`.
+- The AMI comes from AWS's *latest Amazon Linux 2023* SSM parameter, and AWS had published a new image since the stack was deployed. So **any** plan, even with no code change, would now replace the instance.
+- The data volume takes its availability zone from the instance, so a new instance makes the AZ unknown and the volume is **replaced** too, which would be **data loss**. The snapshot, DR copy and attachment follow.
+- **Supply chain:** "latest" is an **unpinned dependency**, the same problem as an unpinned module: the image that runs changes without any code change or review (see 7.3).
+- **Plan-time policy gap:** no policy flagged that a plan **destroys sensitive data** (see 7.4).
+- **Remediation:** pin the AMI (`lifecycle { ignore_changes = [ami] }`, so AMI updates become a deliberate, reviewed change), and take the volume's AZ from the subnet instead of the instance. A Sentinel rule could also block replacing or deleting `data_classification = sensitive` resources.
 
 ### 6.8 Scenario 6: Drift, manual off-region copy
 
@@ -580,12 +612,16 @@ Points identified so far:
 ### 7.3 Importance of supply chain integrity
 _TODO_
 
+Points identified so far:
+- "Latest" is an unpinned dependency. The AMI taken from the *latest Amazon Linux 2023* parameter changed on its own and turned a one-line resize into a replacement of the instance and its sensitive data volume (scenario 5). Pinning applies to images as much as to providers and modules.
+
 ### 7.4 Limitations of Sentinel and plan-time enforcement
 _TODO_
 
 Points identified so far:
 - Values computed during apply (e.g. a CIDR taken from another resource) are unknown at plan time, so a policy can only partially judge them (see network decision 4).
 - Sentinel cannot see changes made outside Terraform (drift).
+- Policies judge each resource's **attributes**, not the **consequences** of a plan. No policy flagged that PR #17's plan would destroy and recreate the sensitive data volume (scenario 5). Protecting data from replacement needs its own rule on `change.actions`.
 - **Mocks are not the platform.** Downloaded mocks write plan numbers as ints, but HCP evaluates them as floats. A type check that passed 40 local tests failed every HCP run (PR #13). Policies need at least one live check against the real platform, and type checks should be written defensively.
 - A policy check only gates the **run**. On its own it doesn't stop a non-compliant change being **merged** to `main` (seen on PR #12). Branch protection, which requires the HCP check before merging, is needed to make the PR gate binding.
 - Some security-relevant values are unknown until apply (e.g. a snapshot's `encrypted`, inherited from its volume; any `kms_key_id` that references a key created in the same run). Policies have to check the place where the value *is* known, which takes knowledge of each resource type.

@@ -219,6 +219,12 @@ The full set stays in `test-results.md`. Checked that every embedded path exists
 
 All 27 screenshots are embedded as clickable thumbnails. Fixed a rendering bug: blank lines inside three tables had made rows display as raw text on GitHub. Verified every image path and internal anchor. Reduced `documentation/evidence/test-results.md` to an index that links into README §6, keeping the brief's folder structure without duplicated content.
 
+### Prompt 27 (2026-11-12)
+> [screenshots: PR #17 "TEST - advisory: t3.large" with all checks passed; HCP run "Planned and finished", plan +5/−5; aws_instance.app diff showing "ami … Forces replacement"; then the policy check "Sentinel policies passed, 1 advisory failed" and the instance_type advisory log "WARN instance_types_approved: aws_instance.app uses t3.large"]
+> check the screenshots for test C for changing instance type into t3.large
+
+**What the AI did:** Confirmed the advisory behaviour: the policy check passed with one advisory failure, the run wasn't blocked, and the GitHub check was green. Contrasted it with the hard-mandatory scenarios. Diagnosed the unexpected +5/−5 plan: the AMI comes from the "latest" SSM parameter, AWS had published a new image, so every plan would replace the instance, and through the volume's AZ dependency the sensitive data volume, snapshot and DR copy too. Flagged that the instance-diff screenshot shows the account ID and public IP, and excluded it from the evidence. Added scenario 5 (4 screenshots, a comparison table, the advisory risk and the AMI finding) and the updated policy-set screenshot to the README. Added new points to 7.3 (unpinned "latest" image) and 7.4 (policies don't see consequences such as sensitive data being replaced).
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->
