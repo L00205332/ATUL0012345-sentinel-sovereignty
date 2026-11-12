@@ -7,7 +7,7 @@ resource "aws_ebs_volume" "data" {
   availability_zone = aws_instance.app.availability_zone
   size              = var.data_volume_size
   type              = "gp3"
-  encrypted         = true
+  encrypted         = false
   kms_key_id        = aws_kms_key.primary.arn
 
   tags = {
