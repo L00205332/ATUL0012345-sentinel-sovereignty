@@ -367,6 +367,10 @@ _TODO: generating `tfplan`._
 | metadata | `fail-no-metadata-options.hcl` | No `metadata_options` (fail safe) | false | ✅ PASS |
 | metadata | `fail-hop-limit-2.hcl` | IMDSv2 but hop limit 2 | false (IMDSv2 ✅, hop ❌) | ✅ PASS |
 | metadata | `fail-launch-template-imdsv1.hcl` | Launch template allows IMDSv1 | false | ✅ PASS |
+| metadata | `pass-float-hop.hcl` | Hop limit `1.0` (float, as HCP passes it). Regression test for the PR #13 bug | true | ✅ PASS |
+| metadata | `fail-float-hop-2.hcl` | Hop limit `2.0` (float) | false (hop ❌) | ✅ PASS |
+| network | `pass-float-ports.hcl` | Public HTTPS with ports `443.0` (float) | true | ✅ PASS |
+| network | `fail-float-ports.hcl` | SSH `22.0` and range `0.0–65535.0` from the internet (floats) | false | ✅ PASS |
 | instance_type | `pass-real-baseline.hcl` | **Real plan**: `t3.micro` | true | ✅ PASS |
 | instance_type | `pass.hcl` | `t3.micro` instance, `t3.small` template, template without type | true | ✅ PASS |
 | instance_type | `fail-t3-large.hcl` | `t3.large` (advisory) | false | ✅ PASS |
@@ -374,7 +378,7 @@ _TODO: generating `tfplan`._
 
 **Mutation tests:** with `us-east-1` added to the approved regions, 4 sovereignty tests failed; with IMDSv1 accepted, 2 metadata tests failed; with AWS-managed keys accepted, 1 encryption test failed. A weakened policy cannot pass `sentinel test`, and the upload script refuses to deploy it.
 
-**Totals:** 40/40 policy tests and 36/36 bundle tests PASS.
+**Totals:** 44/44 policy tests and 40/40 bundle tests PASS.
 
 ### HCP Terraform runs
 
@@ -382,6 +386,19 @@ _TODO: generating `tfplan`._
 |---|---|---|---|---|
 | `run-Xz7zmhMJKXVNHwa3` "First compliant run: baseline stack with network policy" | UI, commit `74787df` | 23 to add, 0 change, 0 destroy | `network` (hard-mandatory) ✅ 1/1 passed, on HCP Sentinel 0.40.x | ✅ Applied: 23 created (confirmed manually: "Compliant baseline: network policy passed") |
 | Speculative plan for **PR #9** "TEST - non-compliant: DR snapshot copy to us-east-1 (do not merge)" | GitHub PR, `dr_region = "us-east-1"` | 3 to add, 3 to destroy (DR key, alias and snapshot copy replaced in us-east-1) | `atul0012345-guardrails` (hard-mandatory) ❌ **hard failed**, 0/1 passed | ⛔ **Errored**, cannot be applied; PR check red ("1 failed"); PR closed without merging |
+
+| Speculative plan `run-u9HrW9R8yiofYKmm` for **PR #12** "TEST - non-compliant: unencrypted EBS volume (do not merge)" | GitHub PR, `aws_ebs_volume.data` `encrypted = false` | 4 to add, 4 to destroy (volume replaced, plus its attachment, snapshot and DR copy) | **1 of 2 passed**: `instance_type` (advisory) ✅, `atul0012345-guardrails` (hard-mandatory) ❌ `FAIL ebs_encrypted: aws_ebs_volume.data is not encrypted` | ⛔ **Errored**; PR check red; closed without merging |
+
+| Speculative plan for **PR #13** "TEST - non-compliant: IMDSv1 allowed (do not merge)" | GitHub PR, `http_tokens = "optional"` | 0 to add, **1 to change** (`aws_instance.app` updated in place), 0 to destroy | 1 of 2 passed: `instance_type` ✅, guardrails ❌ `FAIL imdsv2_required: aws_instance.app allows IMDSv1 (http_tokens = optional)` **plus a false `FAIL imds_hop_limit_restricted: … hop_limit = 1, maximum allowed is 1`** | ⛔ Errored; PR check red. Exposed a policy bug (below), fixed and re-run |
+
+**Bug found by PR #13: local tests passed, HCP disagreed.** The hop-limit rule required the value's type to be `int`. In HCP, plan numbers arrive as **floats** (`1.0`), but downloaded mocks write them as ints (`1`), so all 40 local tests passed while every HCP run failed the rule, including compliant ones. Fixes:
+- The rule now accepts `int` or `float`.
+- New regression tests feed **float** values to the metadata policy (`pass-float-hop`, `fail-float-hop-2`) and to the network policy, which compares port numbers (`pass-float-ports`, `fail-float-ports`). The network policy already handled floats.
+- Reverting the fix makes `pass-float-hop` fail with the exact message HCP showed.
+
+Lesson: **mock-based tests are only as faithful as the mocks**, and mock files lose number types. A live run against the real platform is still needed (see 7.4).
+
+**Finding from PR #12: GitHub still offered "Merge pull request" despite the failed check.** Without branch protection, a failed policy check stops the **apply**, but not the **merge**. Merging would put non-compliant code on `main`; the resulting run would fail the hard-mandatory policy again, so nothing would be deployed, but `main` would no longer be compliant. Fix: a branch protection rule on `main` requiring the *Terraform Cloud* status check, so GitHub refuses the merge, and enforcement moves one step earlier, to code review (see 7.4).
 
 **PR #9 policy output** (all violations in one run, thanks to `main = all [...]`):
 ```
@@ -444,6 +461,8 @@ _TODO_
 Points identified so far:
 - Values computed during apply (e.g. a CIDR taken from another resource) are unknown at plan time, so a policy can only partially judge them (see network decision 4).
 - Sentinel cannot see changes made outside Terraform (drift).
+- **Mocks are not the platform.** Downloaded mocks write plan numbers as ints, but HCP evaluates them as floats. A type check that passed 40 local tests failed every HCP run (PR #13). Policies need at least one live check against the real platform, and type checks should be written defensively.
+- A policy check only gates the **run**. On its own it doesn't stop a non-compliant change being **merged** to `main` (seen on PR #12). Branch protection, which requires the HCP check before merging, is needed to make the PR gate binding.
 - Some security-relevant values are unknown until apply (e.g. a snapshot's `encrypted`, inherited from its volume; any `kms_key_id` that references a key created in the same run). Policies have to check the place where the value *is* known, which takes knowledge of each resource type.
 - Sentinel sees only the configuration we wrote: a module's internal provider requirements and nested dependencies don't appear in `tfconfig/v2`.
 - Policies also run on **destroy** plans. A policy must not block the removal of non-compliant resources, so the policies only evaluate resources being created or updated.

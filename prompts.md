@@ -161,6 +161,23 @@ Recorded the run, the policy output and the explanation of how enforcement preve
 
 Generated 17 hand-written tfplan+tfconfig mocks with a script, and added real-plan tests. `strings.contains` doesn't exist in Sentinel, so the `contains` operator is used instead. Added the real config mock to the existing real-plan tests. Extended `build-bundle.ps1` with empty mocks for imports a test doesn't mock, and with a name-clash check for loop variables. Result: 40/40 policy tests and 36/36 bundle tests (4 policies, 11 rules). Mutation tests on metadata and encryption were caught. Updated `sentinel.hcl` (instance_type advisory) and the README.
 
+### Prompt 20 (2026-11-12)
+> [screenshots: HCP run for PR #12 "TEST - non-compliant: unencrypted EBS volume": plan +4/-4, policy checks 1 of 2 passed, atul0012345-guardrails hard failed with "FAIL ebs_encrypted: aws_ebs_volume.data is not encrypted", run Errored; GitHub PR #12 "All checks have failed" with the Merge pull request button still enabled]
+> here is the failures from HCP and GitHub, now let's move to test B (allow IMDSv1) once done will provide the screenshot for our own readme
+
+**What the AI did:** Interpreted the result:
+- the volume replacement cascades to its attachment, snapshot and DR copy
+- only `ebs_encrypted` fails, since the key is still configured
+- the advisory policy passed separately
+
+Spotted that GitHub still allowed merging a PR with a failed check, and explained the gap: policy checks gate the apply, not the merge. Recommended branch protection requiring the HCP check. Recorded the run, the finding and a new limitation in the README.
+
+### Prompt 21 (2026-11-12)
+> [screenshots: PR #13 "TEST - non-compliant: IMDSv1 allowed" with all checks failed; HCP run: 1 to change (aws_instance.app), guardrails hard failed with "FAIL imdsv2_required: … http_tokens = optional" AND "FAIL imds_hop_limit_restricted: aws_instance.app has http_put_response_hop_limit = 1, maximum allowed is 1"]
+> please check the evidences for Test B
+
+**What the AI did:** Spotted that the second failure is a false positive: hop limit 1 is allowed. Diagnosed the cause as HCP passing plan numbers as floats while the downloaded mocks store ints, so the `type_of(...) is "int"` check passed all local tests but failed every HCP run, including compliant ones. Fixed it to accept int or float. Added float regression tests for metadata and for network, which compares ports; network already handled floats. Confirmed that reverting the fix reproduces HCP's exact message. 44/44 tests. Documented the bug, the fix and the lesson ("mocks are not the platform") in the README.
+
 ---
 
 <!-- Add new prompts below in the same format: number, date, verbatim prompt, short note on what the AI did. -->

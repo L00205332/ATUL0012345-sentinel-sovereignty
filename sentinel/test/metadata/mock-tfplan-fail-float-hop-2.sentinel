@@ -1,0 +1,9 @@
+# Floats, as HCP passes plan numbers (downloaded mocks write ints).
+resource_changes = {
+	"aws_instance.app": {
+		"address": "aws_instance.app", "type": "aws_instance", "mode": "managed",
+		"provider_name": "registry.terraform.io/hashicorp/aws",
+		"change": {"actions": ["create"], "after": {"region": "eu-west-1", "instance_type": "t3.micro",
+			"metadata_options": [{"http_endpoint": "enabled", "http_tokens": "required", "http_put_response_hop_limit": 2.0}]}, "after_unknown": {}},
+	},
+}
