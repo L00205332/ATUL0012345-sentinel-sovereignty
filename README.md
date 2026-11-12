@@ -379,6 +379,10 @@ The pipeline is itself part of the supply chain, so:
 
 HCP Terraform still runs the real plan and policy check for each PR; CI adds the fast static checks and the policy unit tests as a second status check.
 
+**First CI run (PR #23):** both CI jobs ✅ and HCP's check ✅, with `deploy-policies` correctly skipped on a PR. The log shows `sentinel.zip: OK` (checksum verified) and 110 `PASS` lines (57 policy + 53 bundle tests) on a Linux runner.
+
+<a href="documentation/evidence/40-ci-and-hcp-checks-passed.png"><img src="documentation/evidence/40-ci-and-hcp-checks-passed.png" width="640" alt="PR 23: CI jobs and HCP check passed"></a>
+
 **To enable automatic policy deployment** (optional): in HCP, create a **team API token** for a team with "Manage policies" (or a user token), and add it on GitHub under **Settings → Secrets and variables → Actions** as `TFE_TOKEN`.
 
 ## 6. Testing and evidence
