@@ -357,13 +357,14 @@ Every claim in this section is backed by a screenshot in [`documentation/evidenc
 
 | # | Scenario | Change | Expected | Actual |
 |---|---|---|---|---|
-| 0 | [Local mock tests](#69-local-mock-tests-sentinel-test) | — | all pass | ✅ **57/57** policy tests, **53/53** bundle tests |
+| 0 | [Local mock tests](#610-local-mock-tests-sentinel-test) | — | all pass | ✅ **57/57** policy tests, **53/53** bundle tests |
 | 1 | [Compliant baseline](#63-scenario-1-compliant-baseline-applied) | `main` | policies pass, apply allowed | ✅ passed; 23 resources applied |
 | 2 | [Sovereignty: DR copy outside the EU (PR #9)](#64-scenario-2-dr-copy-outside-the-eu-pr-9-blocked) | `dr_region = "us-east-1"` | **blocked** | ⛔ hard failed: `resources_in_approved_regions` ×3, `sensitive_data_resident` |
 | 3 | [Unencrypted EBS volume (PR #12)](#65-scenario-3-unencrypted-ebs-volume-pr-12-blocked) | `encrypted = false` | **blocked** | ⛔ hard failed: `ebs_encrypted` |
 | 4 | [IMDSv1 allowed (PR #13)](#66-scenario-4-imdsv1-allowed-pr-13-blocked-and-a-policy-bug-found) | `http_tokens = "optional"` | **blocked** | ⛔ hard failed: `imdsv2_required` (the first run also exposed a policy bug, now fixed) |
 | 5 | [Advisory: `t3.large` (PR #17)](#67-scenario-5-advisory-t3large) | `instance_type = "t3.large"` | **warn, not blocked** | ⚠️ advisory warning only; run **not** blocked, GitHub check green. Also exposed an unpinned-AMI replacement risk |
 | 6 | [Drift: manual `us-east-1` copy](#68-scenario-6-drift-manual-off-region-copy) | AWS CLI, outside Terraform | Sentinel can't see it; the audit flags `DRIFT` | 🔎 HCP: +0 ~0 −0, **2/2 policies passed**; audit: **`DRIFT`** detected → copy deleted → clean |
+| 7 | [Supply chain: unpinned module (PR #21)](#69-scenario-7-unpinned-module-pr-21-blocked) | VPC module `6.0.0` → `~> 6.0` | **blocked** | ⛔ hard failed: `modules_pinned`; the plan itself succeeded |
 
 **How a non-compliant change is prevented:**
 1. Every change reaches `main` only through a PR. HCP runs a speculative plan for the PR and evaluates it against the policy set, and GitHub shows the result as a status check.
@@ -561,7 +562,25 @@ What this shows:
 - **The IAM region restriction protects only the pipeline identity.** People with broader permissions can still move data. Closing that gap needs an organisation-level guardrail, e.g. an **AWS Organizations SCP** that denies all non-EU regions for every identity, plus continuous detection (AWS Config rules, CloudTrail alerts on `CopySnapshot`) instead of a manually run audit.
 - **Detection tags must not be trusted.** The copy carried no project tags, so the audit treats **any** resource in an off-region as drift, instead of filtering by tag as it does in the EU regions.
 
-### 6.9 Local mock tests (`sentinel test`)
+### 6.9 Scenario 7: Unpinned module (PR #21): BLOCKED
+
+**Change:** `module "vpc"` `version = "6.0.0"` → `"~> 6.0"`. **Expected:** `modules_pinned` fails. This is the most realistic supply-chain mistake: a range looks harmless, but **modules aren't recorded in `.terraform.lock.hcl`**, so every `terraform init` may fetch newer module code that nobody reviewed.
+
+Policies were first redeployed with the supply chain policy in the bundle (5 policies, 16 rules, commit `a873e1a`):
+
+<a href="documentation/evidence/36-upload-bundle-with-supply-chain.png"><img src="documentation/evidence/36-upload-bundle-with-supply-chain.png" width="640" alt="upload-policies.ps1 deploying the bundle with supply_chain"></a>
+
+| Run | Plan | Policy check | Outcome |
+|---|---|---|---|
+| Speculative plan for PR #21 (commit `4acd1e4`) | +5 / −5 (the unrelated AMI replacement from scenario 5) | `atul0012345-guardrails` ❌ **hard failed**: `FAIL modules_pinned: module "vpc" (terraform-aws-modules/vpc/aws) is not pinned to an exact version: "~> 6.0"` | ⛔ Errored; PR check red; closed without merging |
+
+**Plan versus policy:** the HCP status page shows the two checks separately. The **Terraform plan succeeded** ✅ (*5 to add, 0 to change, 5 to destroy*), while the **Sentinel check failed** ❌ (*Policy checks failed (hard-mandatory)*). The change was technically deployable; only the policy said it wasn't allowed. Every other rule, sovereignty, encryption, IMDSv2 and the provider rules included, passed, so the failure isolates the module pin.
+
+| Policy hard failed | HCP status: plan ✅, policy ❌ | GitHub check failed |
+|---|---|---|
+| <a href="documentation/evidence/37-pr21-unpinned-module-policy-hard-failed.png"><img src="documentation/evidence/37-pr21-unpinned-module-policy-hard-failed.png" width="280" alt="PR 21 policy hard failed"></a> | <a href="documentation/evidence/38-pr21-hcp-status-plan-ok-policy-failed.png"><img src="documentation/evidence/38-pr21-hcp-status-plan-ok-policy-failed.png" width="280" alt="PR 21 HCP status: plan ok, policy failed"></a> | <a href="documentation/evidence/39-pr21-github-checks-failed.png"><img src="documentation/evidence/39-pr21-github-checks-failed.png" width="280" alt="PR 21 GitHub check failed"></a> |
+
+### 6.10 Local mock tests (`sentinel test`)
 
 Run with `cd sentinel; sentinel test`. A test case passes when the policy returns the result the test expects, so a `fail-*.hcl` test **passing** means the policy correctly **rejected** that mock. Tests named `pass-real-*` / `fail-real-*` replay **real** plans downloaded from HCP runs.
 
@@ -645,7 +664,7 @@ Result: **53/53 PASS** (5 bundled policies, 16 rules).
 
 A weakened policy can't pass `sentinel test`, and `upload-policies.ps1` refuses to deploy one.
 
-### 6.10 What the real mocks showed
+### 6.11 What the real mocks showed
 
 - **`region` is known at plan time for every regional resource**, including ones that never set it (AWS provider v6 fills in the provider's region). Only the three IAM resources have no `region` (a global service). → The sovereignty policy reads `change.after.region` directly.
 - **A snapshot's `encrypted` is unknown at plan time** (it's inherited from the volume). → The encryption policy checks the source volume, and the DR copy's own `encrypted`/`kms_key_id`.
