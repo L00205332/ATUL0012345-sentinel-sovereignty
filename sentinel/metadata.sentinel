@@ -58,7 +58,9 @@ for md_changed as md_addr, md_rc {
 				append(md_token_violations, md_addr + " allows IMDSv1 (http_tokens = " + string(md_tokens) + ")")
 			}
 			md_hop = md_o.http_put_response_hop_limit else null
-			if types.type_of(md_hop) is not "int" or md_hop > md_max_hop_limit {
+			# HCP passes plan numbers as floats (1.0); downloaded mocks write them as
+			# ints (1). Accept both, otherwise every HCP run fails this rule.
+			if not (types.type_of(md_hop) in ["int", "float"]) or md_hop > md_max_hop_limit {
 				append(md_hop_violations, md_addr + " has http_put_response_hop_limit = " + string(md_hop else "unset") +
 					", maximum allowed is " +
 					string(md_max_hop_limit))
