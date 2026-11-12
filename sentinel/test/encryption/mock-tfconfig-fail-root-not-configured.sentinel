@@ -1,0 +1,18 @@
+# Configuration for: Non-compliant (fail safe): no root_block_device, so encryption depends on AMI/account defaults.
+resources = {
+	"aws_instance.app": {
+		"address":        "aws_instance.app",
+		"type":           "aws_instance",
+		"mode":           "managed",
+		"module_address": "",
+		"config": {
+			"instance_type": {
+				"constant_value": "t3.micro",
+			},
+		},
+	},
+}
+
+providers = {}
+
+module_calls = {}

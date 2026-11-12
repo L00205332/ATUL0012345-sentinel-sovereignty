@@ -1,0 +1,18 @@
+# Configuration for: Non-compliant: EBS volume with encrypted = false and no key.
+resources = {
+	"aws_ebs_volume.data": {
+		"address":        "aws_ebs_volume.data",
+		"type":           "aws_ebs_volume",
+		"mode":           "managed",
+		"module_address": "",
+		"config": {
+			"encrypted": {
+				"constant_value": false,
+			},
+		},
+	},
+}
+
+providers = {}
+
+module_calls = {}

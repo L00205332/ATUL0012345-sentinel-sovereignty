@@ -1,0 +1,35 @@
+# Configuration for: Non-compliant: launch template allows IMDSv1.
+resources = {
+	"aws_launch_template.app": {
+		"address":        "aws_launch_template.app",
+		"type":           "aws_launch_template",
+		"mode":           "managed",
+		"module_address": "",
+		"config": {
+			"block_device_mappings": [
+				{
+					"device_name": {
+						"constant_value": "/dev/xvda",
+					},
+					"ebs": [
+						{
+							"encrypted": {
+								"constant_value": "true",
+							},
+							"kms_key_id": {
+								"references": [
+									"aws_kms_key.primary.arn",
+									"aws_kms_key.primary",
+								],
+							},
+						},
+					],
+				},
+			],
+		},
+	},
+}
+
+providers = {}
+
+module_calls = {}

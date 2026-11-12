@@ -1,0 +1,31 @@
+# Configuration for: Non-compliant (advisory, fail safe): instance type only known after apply.
+resources = {
+	"aws_instance.app": {
+		"address":        "aws_instance.app",
+		"type":           "aws_instance",
+		"mode":           "managed",
+		"module_address": "",
+		"config": {
+			"instance_type": {
+				"constant_value": null,
+			},
+			"root_block_device": [
+				{
+					"encrypted": {
+						"constant_value": true,
+					},
+					"kms_key_id": {
+						"references": [
+							"aws_kms_key.primary.arn",
+							"aws_kms_key.primary",
+						],
+					},
+				},
+			],
+		},
+	},
+}
+
+providers = {}
+
+module_calls = {}

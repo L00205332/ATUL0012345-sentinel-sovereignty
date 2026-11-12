@@ -1,0 +1,29 @@
+# Configuration for: Non-compliant: launch template disk with encrypted = "false".
+resources = {
+	"aws_launch_template.app": {
+		"address":        "aws_launch_template.app",
+		"type":           "aws_launch_template",
+		"mode":           "managed",
+		"module_address": "",
+		"config": {
+			"block_device_mappings": [
+				{
+					"device_name": {
+						"constant_value": "/dev/xvda",
+					},
+					"ebs": [
+						{
+							"encrypted": {
+								"constant_value": "false",
+							},
+						},
+					],
+				},
+			],
+		},
+	},
+}
+
+providers = {}
+
+module_calls = {}

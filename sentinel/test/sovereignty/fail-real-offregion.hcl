@@ -1,9 +1,15 @@
-# Real plan data downloaded from HCP run run-kwQg5XK3EGXKwPTs: the speculative
+# Real plan + config data downloaded from HCP run run-kwQg5XK3EGXKwPTs: the speculative
 # plan for PR #9 "TEST - non-compliant: DR snapshot copy to us-east-1".
 # AWS account ID and public IP redacted (policy does not use them).
 mock "tfplan/v2" {
   module {
     source = "../../mocks/offregion-snapshot/mock-tfplan-v2.sentinel"
+  }
+}
+
+mock "tfconfig/v2" {
+  module {
+    source = "../../mocks/offregion-snapshot/mock-tfconfig-v2.sentinel"
   }
 }
 
